@@ -1,0 +1,116 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+.wrapper {
+    width: 99%;
+    height: 99%;
+    position: relative;
+    overflow: auto;
+}
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+thead th {
+    background: #EEEEEE;
+    border: solid 1px black;
+    white-space: nowrap;
+    padding: 2px;
+    position: sticky;
+    top: 0px;
+    font-size: larger;
+    z-index: 2;
+    min-width: 250px;
+    width: 250px;
+}
+thead th a {
+    text-decoration: none;
+    color: black;
+}
+thead th.corner {
+    z-index: 10;
+    left: 0px;
+    width: 200px;
+}
+thead th.corner a {
+    text-decoration: underline;
+    color: black;
+}
+
+tbody td {
+    border-left: solid 1px black;
+    border-right: solid 1px black;
+    padding: 2px;
+    height: 2.5em;
+    min-width: 250px;
+    width: 250px;
+}
+tbody tr.row1 td {
+    background: #FFFFFF;
+}
+tbody tr.row2 td {
+    background: #F8F8F8;
+}
+
+tbody td.slot-above, tbody td.slot-both, tbody td.period-col {
+    border-top: solid 1px black;
+}
+tbody td.slot-below {
+    border-top: solid 1px gray;
+}
+tbody td.slot-below.both-empty {
+    border-top: none;
+}
+tbody td.first-period {
+    border-top: solid 3px black;
+}
+
+td.day-col {
+    border-top: solid 3px black;
+    border-bottom: none 0px black;
+    background: #EEEEEE;
+    min-width: 30px;
+    width: 30px;
+    max-width: 30px;
+    left: 0px;
+    position: sticky;
+    z-index: 5;
+}
+td.day-col span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: xx-large;
+}
+td.period-col {
+    text-align: center;
+    font-size: x-large;
+    background: #EEEEEE;
+    border-right: solid 2px black;
+    min-width: 80px;
+    width: 80px;
+    max-width: 80px;
+    left: 75px;
+    position: sticky;
+    z-index: 5;
+}
+
+td span.course {
+    display: block;
+    text-align: justify;
+}
+td span.slot-second-row {
+    display: flex;
+    justify-content: space-between;
+}
+td span.group {
+}
+td span.room {
+    font-weight: bold;
+}
+td span.teacher {
+    font-weight: bold;
+}

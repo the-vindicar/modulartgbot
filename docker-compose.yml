@@ -1,0 +1,42 @@
+volumes:
+  postgre-data:
+  multibot-data:
+
+services:
+  postgresql:
+    hostname: postgresql
+    container_name: postgresql
+    image: postgres:latest
+    environment:
+      - PGUSER=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=multibot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "multibot"]
+      start_period: 60s
+      interval: 60s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - postgre-data:/var/lib/postgresql/data
+
+  multibot:
+    hostname: multibot
+    container_name: multibot
+    ports:
+      - "8080:8080"
+    build: .
+    environment:
+      - MULTIBOT_DATA=/data/multibot
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=postgres
+      - POSTGRES_DB=multibot
+    tty: true
+    init: true
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    volumes:
+      - multibot-data:/data/multibot

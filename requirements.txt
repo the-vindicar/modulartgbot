@@ -1,0 +1,6 @@
+pyyaml
+python-dotenv
+asyncpg
+aiohttp
+quart
+aiogram

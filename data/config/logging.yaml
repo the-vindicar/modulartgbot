@@ -1,0 +1,14 @@
+file: ""
+file_maxsize: 65536
+file_backups: 2
+file_level: DEBUG
+stderr_level: DEBUG
+reduced_stacktraces: true
+levels:
+  aiogram: WARNING
+  modules: INFO
+  modules.telegram: INFO
+  modules.moodle: INFO
+  modules.db: INFO
+  modules.assignmon: DEBUG
+  modules.timetablemon: DEBUG

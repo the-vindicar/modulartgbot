@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+    <head>
+        <link rel="stylesheet" href="{{ url_for('timetable.static', filename='style.css') }}"/>
+        <title>Расписание преподавателей</title>
+    </head>
+    <body>
+        <div class="wrapper">
+            <table>
+                <thead>
+                <tr class="sticky-row">
+                    <th class="corner" colspan="2"><a href="{{ rooms_url }}">Аудитории</a></th>
+                    {%- for item in headers -%}
+                    <th {% if item[1] %}title="{{item[1]}}"{% endif %}><a id="{{item[0]}}" href="#{{item[0]}}">{{item[0]}}</a></th>
+                    {% endfor -%}
+                </tr>
+                </thead>
+                <tbody>
+                {%- for iday, dayname, periods in days -%}
+                {%- for iperiod, periodname, items in periods -%}
+                    <tr class="row{{iday % 2 + 1}}">
+                        {% if iperiod == 0 %}<td class="day-col" rowspan="{{len(periods) * 2}}"><span>{{dayname}}</span></td>{% endif %}
+                        <td rowspan="2" class="period-col{% if iperiod == 0 %} first-period{% endif %}">{{periodname}}</td>
+                        {%- for item in items -%}
+                        {%- if item.both %}
+                        <td rowspan="2" class="slot-both{% if iperiod == 0 %} first-period{% endif %}">
+                            <span class="course">{{item.both.course}} ({{item.both.type}})</span>
+                            <span class="slot-second-row">
+                                <span class="group">{{item.both.groups}}</span>
+                                <span class="room">{{item.both.room}}</span>
+                            </span>
+                        </td>
+                        {%- elif item.above %}
+                        <td class="slot-above{% if iperiod == 0 %} first-period{% endif %}">
+                            <span class="course">{{item.above.course}} ({{item.above.type}})</span>
+                            <span class="slot-second-row">
+                                <span class="group">{{item.above.groups}}</span>
+                                <span class="room">{{item.above.room}}</span>
+                            </span>
+                        </td>
+                        {%- else %}
+                        <td class="slot-above empty{% if not item.below %} both-empty{% endif %}{% if iperiod == 0 %} first-period{% endif %}"></td>
+                        {%- endif -%}
+                        {%- endfor %}
+                    </tr>
+                    <tr class="row{{iday % 2 + 1}}">
+                        {%- for item in items -%}
+                        {%- if item.below -%}
+                        <td class="slot-below">
+                            <span class="course">{{item.below.course}} ({{item.below.type}})</span>
+                            <span class="slot-second-row">
+                                <span class="group">{{item.below.groups}}</span>
+                                <span class="room">{{item.below.room}}</span>
+                            </span>
+                        </td>
+                        {%- elif not item.both -%}
+                        <td class="slot-below empty{% if not item.above %} both-empty{% endif %}"></td>
+                        {%- endif -%}
+                        {%- endfor -%}
+                    </tr>
+                    {%- endfor -%}
+                {%- endfor -%}
+                </tbody>
+            </table>
+        </div>
+    </body>
+</html>
