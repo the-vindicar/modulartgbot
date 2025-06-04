@@ -26,6 +26,7 @@ class MoodleMonitorSubmissionConfig:
 
 @dataclasses.dataclass
 class MoodleMonitorConfig:
+    server_timezone: str = 'UTC'
     courses: MoodleMonitorCoursesConfig = dataclasses.field(default_factory=MoodleMonitorCoursesConfig)
     participants: MoodleMonitorParticipantConfig = dataclasses.field(default_factory=MoodleMonitorParticipantConfig)
     assignments: MoodleMonitorAssignmentConfig = dataclasses.field(default_factory=MoodleMonitorAssignmentConfig)

@@ -1,5 +1,6 @@
 import typing as t
 import datetime
+import zoneinfo
 
 import asyncpg
 
@@ -9,17 +10,18 @@ from ._config import MoodleMonitorConfig
 from .data_layer import *
 
 
-def get_datetime(item: dict[str, t.Any], key: str) -> t.Optional[datetime.datetime]:
-    value: t.Optional[int] = item.get(key, None)
-    return datetime.datetime.fromtimestamp(value, datetime.timezone.utc) if value is not None else None
-
-
 class ImportService:
     """Занимается загрузкой сведений из инстанса Moodle и их сохранением в базу данных."""
     def __init__(self, cfg: MoodleMonitorConfig, m: Moodle, conn: asyncpg.Connection):
         self.cfg = cfg
         self.moodle = m
         self.conn = conn
+        self.servertz = zoneinfo.ZoneInfo(self.cfg.server_timezone)
+
+    def get_datetime(self, item: dict[str, t.Any], key: str) -> t.Optional[datetime.datetime]:
+        value: t.Optional[int] = item.get(key, None)
+        return datetime.datetime.fromtimestamp(value, self.servertz).astimezone(datetime.timezone.utc) \
+            if value is not None else None
 
     async def stream_available_courses(self) -> t.AsyncIterable[Course]:
         offset, limit = 0, self.cfg.courses.chunk_size
@@ -33,8 +35,8 @@ class ImportService:
                 break
             offset = raw_course_data['nextoffset']
             for item in raw_courses:
-                starts = get_datetime(item, 'startdate')
-                ends = get_datetime(item, 'enddate')
+                starts = self.get_datetime(item, 'startdate')
+                ends = self.get_datetime(item, 'enddate')
                 if self.cfg.courses.ignore_no_ending_date and ends is None:
                     continue
                 cid = item['id']
@@ -85,9 +87,9 @@ class ImportService:
                     id=raw_assign['id'],
                     name=raw_assign['name'],
                     course_id=raw_assign['course'],
-                    opening=get_datetime(raw_assign, 'allowsubmissionsfromdate'),
-                    closing=get_datetime(raw_assign, 'duedate'),
-                    cutoff=get_datetime(raw_assign, 'cutoffdate')
+                    opening=self.get_datetime(raw_assign, 'allowsubmissionsfromdate'),
+                    closing=self.get_datetime(raw_assign, 'duedate'),
+                    cutoff=self.get_datetime(raw_assign, 'cutoffdate')
                 )
                 yield a
 
@@ -119,14 +121,14 @@ class ImportService:
                                         mimetype=raw_file['mimetype'],
                                         size=raw_file['filesize'],
                                         url=raw_file['fileurl'],
-                                        uploaded=get_datetime(raw_file, 'timemodified')
+                                        uploaded=self.get_datetime(raw_file, 'timemodified')
                                     )
                                     files.append(file)
                 s = Submission(
                     id=sub_id,
                     assignment_id=assign_id,
                     user_id=user_id,
-                    updated=get_datetime(raw_sub, 'timemodified'),
+                    updated=self.get_datetime(raw_sub, 'timemodified'),
                     files=tuple(files)
                 )
                 yield s
