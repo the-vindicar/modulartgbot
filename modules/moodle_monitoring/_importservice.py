@@ -6,8 +6,7 @@ import asyncpg
 from modules.moodle import Moodle
 
 from ._config import MoodleMonitorConfig
-from ._moodle_classes import *
-from ._data_layer import *
+from .data_layer import *
 
 
 def get_datetime(item: dict[str, t.Any], key: str) -> t.Optional[datetime.datetime]:
@@ -42,7 +41,7 @@ class ImportService:
                 teachers = [p async for p in self.stream_users_with_cap(cid, self.cfg.courses.teachers_have_capability)]
                 all_users = [p async for p in self.stream_users_with_cap(cid)]
                 students = [u for u in all_users if u not in teachers]
-                c = Course(id=cid, shotname=item['shortname'], fullname=item['fullname'],
+                c = Course(id=cid, shortname=item['shortname'], fullname=item['fullname'],
                            starts=starts, ends=ends, students=tuple(students), teachers=tuple(teachers))
                 yield c
 
@@ -69,7 +68,6 @@ class ImportService:
             for raw_user in raw_users:
                 p = Participant(
                     user=User(id=raw_user['id'], name=raw_user['fullname'], email=raw_user['email']),
-                    roles=tuple([Role(id=r['roleid'], name=r['name']) for r in raw_user['roles']]),
                     groups=tuple([Group(id=g['id'], name=g['name']) for g in raw_user['groups']])
                 )
                 yield p

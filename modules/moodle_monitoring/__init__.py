@@ -7,7 +7,7 @@ from api import CoreAPI
 from modules.moodle import Moodle
 from ._config import MoodleMonitorConfig
 from ._moodle_classes import *
-from ._data_layer import *
+from .data_layer import *
 
 
 requires = [asyncpg.Pool, orm1.SessionBackend, Moodle]

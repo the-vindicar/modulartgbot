@@ -44,7 +44,6 @@ class Group(_IDMixin):
 @dataclasses.dataclass(frozen=True, init=True)
 class Participant:
     user: User
-    roles: tuple[Role, ...]
     groups: tuple[Group, ...]
 
     def __eq__(self, other: 'Participant') -> bool:
@@ -61,7 +60,7 @@ class Participant:
 class Course(_IDMixin):
     """Описывает один курс в Moodle."""
     id: int
-    shotname: str
+    shortname: str
     fullname: str
     students: tuple[Participant, ...]
     teachers: tuple[Participant, ...]
