@@ -3,7 +3,7 @@ import datetime
 
 import asyncpg
 
-from .moodle_classes import Course, User, Participant, Group
+from .moodle_classes import Course, User, Participant, Group, ts2int, int2ts
 
 
 async def create_tables_courses_users(conn: asyncpg.Connection) -> None:
@@ -59,8 +59,9 @@ async def create_tables_courses_users(conn: asyncpg.Connection) -> None:
 
 
 async def store_courses(conn: asyncpg.Connection, courses: t.Collection[Course]) -> None:
+    """Сохраняет указанный набор курсов в базу данных."""
     # текущая метка, чтобы помечать некоторые корневые сущности как "последний раз виденные"
-    now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+    now = ts2int(datetime.datetime.now(datetime.timezone.utc))
     # заносим в базу данных новые курсы и обновляем существующие
     coursedata = [
         (c.id, c.shortname, c.fullname,
@@ -138,19 +139,25 @@ async def store_courses(conn: asyncpg.Connection, courses: t.Collection[Course])
     del part_groups_data
 
 
-async def load_courses(conn: asyncpg.Connection, *,
-                       ids: t.Iterable[int] = None,
-                       open_only: bool = False) -> list[Course]:
-    now = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+async def get_open_course_ids(conn: asyncpg.Connection, with_dates_only: bool = False) -> list[int]:
+    now = ts2int(datetime.datetime.now(datetime.timezone.utc))
+    query = 'SELECT (id) FROM MoodleCourses '
+    if with_dates_only:
+        query += 'WHERE ((starts IS NOT NULL) AND (starts >= $1::int)) AND ((ends IS NOT NULL) AND (ends <= $1::int))'
+    else:
+        query += 'WHERE ((starts IS NULL) OR (starts >= $1::int)) AND ((ends IS NULL) OR (ends <= $1::int))'
+    async with conn.cursor(query, now) as cursor:
+        rows = [cid async for (cid,) in cursor]
+    return rows
+
+
+async def load_courses(conn: asyncpg.Connection, ids: t.Iterable[int]) -> list[Course]:
+    """Загружает из базы данных указанный набор курсов."""
+    now = ts2int(datetime.datetime.now(datetime.timezone.utc))
     args = [now]
     query = 'SELECT (id, shortname, fullname, starts, ends) FROM MoodleCourses'
-    if open_only:
-        query += ' WHERE ((starts IS NULL) OR (starts >= $1::int)) AND ((ends IS NULL) OR (ends <= $1::int))'
-    else:
-        query += ' WHERE (1 = 1)'
-    if ids is not None:
-        query += ' AND (id = ANY($2::int[]))'
-        args.append(list(ids))
+    query += ' AND (id = ANY($2::int[]))'
+    args.append(list(ids))
     course_cursor = conn.cursor(query, *args)
     async with course_cursor:
         course_rows: list[tuple[int, str, str, int | None, int | None]] = [row async for row in course_cursor]
@@ -195,8 +202,8 @@ async def load_courses(conn: asyncpg.Connection, *,
         c = Course(
             id=cid,
             shortname=shortname, fullname=fullname,
-            starts=datetime.datetime.fromtimestamp(starts, datetime.timezone.utc) if starts else None,
-            ends=datetime.datetime.fromtimestamp(ends, datetime.timezone.utc) if starts else None,
+            starts=int2ts(starts),
+            ends=int2ts(ends),
             teachers=tuple(teachers),
             students=tuple(students)
         )

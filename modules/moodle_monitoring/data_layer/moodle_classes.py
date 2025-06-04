@@ -5,8 +5,17 @@ import datetime
 
 __all__ = [
     'User', 'Course', 'Participant', 'Role', 'Group',
-    'Assignment', 'Submission', 'SubmittedFile'
+    'Assignment', 'Submission', 'SubmittedFile',
+    'ts2int', 'int2ts'
 ]
+
+
+def ts2int(ts: t.Optional[datetime.datetime]) -> t.Optional[int]:
+    return int(ts.astimezone(datetime.timezone.utc).timestamp()) if ts is not None else None
+
+
+def int2ts(val: t.Optional[int]) -> t.Optional[datetime.datetime]:
+    return datetime.datetime.fromtimestamp(val, datetime.timezone.utc) if val is not None else None
 
 
 class _IDMixin:
