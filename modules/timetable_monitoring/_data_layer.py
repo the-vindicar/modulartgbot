@@ -73,16 +73,17 @@ async def load_teacher_timetable(conn: asyncpg.Connection, teacher: str) -> Time
     total_lines = 0
     cursor = conn.cursor('''SELECT week, day, period, room, course, course_type, groups 
     FROM TeacherTimetableCache WHERE (teacher = $1)''', teacher)
-    async for week, day, period, room, course, ltype, groups in cursor:
-        total_lines += 1
-        slot = timetable.slots[day][period]
-        lesson = Lesson(room=room, teacher=teacher, course=course, type=ltype, groups=groups)
-        if week == 1:
-            slot.above = lesson
-        elif week == 2:
-            slot.below = lesson
-        else:
-            slot.both = lesson
+    async with cursor:
+        async for week, day, period, room, course, ltype, groups in cursor:
+            total_lines += 1
+            slot = timetable.slots[day][period]
+            lesson = Lesson(room=room, teacher=teacher, course=course, type=ltype, groups=groups)
+            if week == 1:
+                slot.above = lesson
+            elif week == 2:
+                slot.below = lesson
+            else:
+                slot.both = lesson
     return timetable
 
 
@@ -102,24 +103,26 @@ async def load_room_timetable(conn: asyncpg.Connection, room: str) -> t.Optional
     total_lines = 0
     cursor = conn.cursor('''SELECT week, day, period, teacher, course, course_type, groups 
     FROM RoomTimetableCache WHERE (room = $1)''', room)
-    async for week, day, period, teacher, course, ltype, groups in cursor:
-        total_lines += 1
-        slot = timetable.slots[day][period]
-        lesson = Lesson(room=room, teacher=teacher, course=course, type=ltype, groups=groups)
-        if week == 1:
-            slot.above = lesson
-        elif week == 2:
-            slot.below = lesson
-        else:
-            slot.both = lesson
+    async with cursor:
+        async for week, day, period, teacher, course, ltype, groups in cursor:
+            total_lines += 1
+            slot = timetable.slots[day][period]
+            lesson = Lesson(room=room, teacher=teacher, course=course, type=ltype, groups=groups)
+            if week == 1:
+                slot.above = lesson
+            elif week == 2:
+                slot.below = lesson
+            else:
+                slot.both = lesson
     return timetable  # if total_lines > 0 else None
 
 
 async def load_update_timestamps(conn: asyncpg.Connection) -> dict[str, datetime.datetime]:
     result = {}
     cursor = conn.cursor('''SELECT teacher, update_timestamp FROM TeacherUpdateTimes''')
-    async for teacher, timestamp in cursor:
-        result[teacher] = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
+    async with cursor:
+        async for teacher, timestamp in cursor:
+            result[teacher] = datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc)
     return result
 
 
