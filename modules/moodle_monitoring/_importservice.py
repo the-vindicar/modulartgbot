@@ -10,6 +10,9 @@ from ._config import MoodleMonitorConfig
 from .data_layer import *
 
 
+__all__ = ['ImportService']
+
+
 class ImportService:
     """Занимается загрузкой сведений из инстанса Moodle и их сохранением в базу данных."""
     def __init__(self, cfg: MoodleMonitorConfig, m: Moodle, conn: asyncpg.Connection):
@@ -115,11 +118,9 @@ class ImportService:
                                 for raw_file in area['files']:
                                     file = SubmittedFile(
                                         submission_id=sub_id,
-                                        assignment_id=assign_id,
-                                        user_id=user_id,
                                         filename=raw_file['filename'],
                                         mimetype=raw_file['mimetype'],
-                                        size=raw_file['filesize'],
+                                        filesize=raw_file['filesize'],
                                         url=raw_file['fileurl'],
                                         uploaded=self.get_datetime(raw_file, 'timemodified')
                                     )

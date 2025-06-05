@@ -1,16 +1,14 @@
 import logging
 
 import asyncpg
-import orm1
 
 from api import CoreAPI
 from modules.moodle import Moodle
 from ._config import MoodleMonitorConfig
-from ._moodle_classes import *
 from .data_layer import *
 
 
-requires = [asyncpg.Pool, orm1.SessionBackend, Moodle]
+requires = [asyncpg.Pool, Moodle]
 provides = []
 
 
