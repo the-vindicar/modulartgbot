@@ -117,7 +117,8 @@ class Scheduler:
             try:
                 self.__log.debug('Updating courses we are subscribed to...')
                 course_stream = self.__moodle.stream_available_courses(
-                    in_progress_only=True,
+                    in_progress_only=self.__cfg.courses.load_inprogress_only,
+                    teachers_capability=self.__cfg.courses.teachers_have_capability,
                     batch_size=self.__cfg.courses.db_batch_size
                 )
                 async for chunk in aiobatch(course_stream, self.__cfg.courses.db_batch_size):

@@ -1,11 +1,18 @@
+wakeup_interval_seconds: 60
 courses:
-  load_inprogress_only: true
-  ignore_no_ending_date: false
+  load_inprogress_only: false
   teachers_have_capability: "moodle/grade:viewall"
-  chunk_size: 25
-participants:
-  chunk_size: 50
+  db_batch_size: 25
+  update_interval_seconds: 43200
 assignments:
-  ignore_older_than_days: 180
+  update_interval_seconds: 43200
+  update_course_batch_size: 1
+  db_batch_size: 5
+  deadline_before_seconds: 7200
+  deadline_after_seconds: 1800
 submissions:
-  chunk_size: 20
+  update_open_interval_seconds: 10800
+  update_open_batch_size: 1
+  update_deadline_interval_seconds: 180
+  update_deadline_batch_size: 1
+  db_batch_size: 5
