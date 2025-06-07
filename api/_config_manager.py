@@ -30,7 +30,7 @@ class ConfigManagerImpl(ConfigManager):
                 await self.save(name, default)
                 return default
         else:
-            return self._construct_instance(configclass, data)
+            return self.construct_instance(configclass, data)
 
     async def save(self, name: str, config: _T) -> None:
         data = dataclasses.asdict(config)
@@ -44,7 +44,8 @@ class ConfigManagerImpl(ConfigManager):
         except TypeError:
             return False
 
-    def _construct_instance(self, configclass: t.Type[_T], data: dict[str, t.Any]) -> _T:
+    @classmethod
+    def construct_instance(cls, configclass: t.Type[_T], data: dict[str, t.Any]) -> _T:
         values: dict[str, t.Any] = {}
         for field in dataclasses.fields(configclass):
             base = t.get_origin(field.type)
@@ -53,17 +54,17 @@ class ConfigManagerImpl(ConfigManager):
                         base is t.Union and None in t.get_args(field.type)):
                     values[field.name] = None
             elif base is None:
-                if dataclasses.is_dataclass(base):
-                    values[field.name] = self._construct_instance(field.type, data[field.name])
+                if dataclasses.is_dataclass(field.type):
+                    values[field.name] = cls.construct_instance(field.type, data[field.name])
                 else:
                     values[field.name] = data[field.name]
-            elif self._subclasscheck(base, t.Iterable):
+            elif cls._subclasscheck(base, t.Iterable):
                 element = t.get_args(field.type)
                 collection = data[field.name]
                 if isinstance(collection, t.Iterable) and not isinstance(collection, str):
                     if element and dataclasses.is_dataclass(element[0]):
                         eletype = element[0]
-                        values[field.name] = base([self._construct_instance(eletype, item) for item in collection])
+                        values[field.name] = base([cls.construct_instance(eletype, item) for item in collection])
                     else:
                         values[field.name] = base(collection)
             else:
