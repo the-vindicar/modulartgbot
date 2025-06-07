@@ -3,7 +3,8 @@ import datetime
 
 import asyncpg
 
-from .moodle_classes import Course, User, Participant, Group, ts2int, int2ts
+from modules.moodle import Course, User, Participant, Group, course_id
+from .utils import ts2int, int2ts
 
 
 async def create_tables_courses_users(conn: asyncpg.Connection) -> None:
@@ -139,14 +140,16 @@ async def store_courses(conn: asyncpg.Connection, courses: t.Collection[Course])
     del part_groups_data
 
 
-async def get_open_course_ids(conn: asyncpg.Connection, with_dates_only: bool = False) -> list[int]:
-    now = ts2int(datetime.datetime.now(datetime.timezone.utc))
+async def get_open_course_ids(conn: asyncpg.Connection,
+                              now: datetime.datetime,
+                              with_dates_only: bool = False) -> list[course_id]:
+    nowts = ts2int(now)
     query = 'SELECT (id) FROM MoodleCourses '
     if with_dates_only:
         query += 'WHERE ((starts IS NOT NULL) AND (starts >= $1::int)) AND ((ends IS NOT NULL) AND (ends <= $1::int))'
     else:
         query += 'WHERE ((starts IS NULL) OR (starts >= $1::int)) AND ((ends IS NULL) OR (ends <= $1::int))'
-    async with conn.cursor(query, now) as cursor:
+    async with conn.cursor(query, nowts) as cursor:
         rows = [cid async for (cid,) in cursor]
     return rows
 
@@ -200,7 +203,7 @@ async def load_courses(conn: asyncpg.Connection, ids: t.Iterable[int]) -> list[C
             else:
                 students.append(p)
         c = Course(
-            id=cid,
+            id=course_id(cid),
             shortname=shortname, fullname=fullname,
             starts=int2ts(starts),
             ends=int2ts(ends),

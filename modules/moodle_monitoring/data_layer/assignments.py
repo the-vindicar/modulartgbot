@@ -3,7 +3,8 @@ import typing as t
 
 import asyncpg
 
-from .moodle_classes import Assignment, ts2int, int2ts
+from modules.moodle import assignment_id, Assignment
+from .utils import ts2int, int2ts
 
 
 async def create_tables_assignments(conn: asyncpg.Connection) -> None:
@@ -33,26 +34,39 @@ async def store_assignments(conn: asyncpg.Connection, assignments: t.Collection[
     ''', raw_assigns)
 
 
-async def get_active_assignment_ids_with_deadlines(conn: asyncpg.Connection, with_dates_only: bool = False
-                                                   ) -> dict[int, t.Optional[datetime.datetime]]:
-    now = ts2int(datetime.datetime.now(datetime.timezone.utc))
+class OpenAssignments(t.NamedTuple):
+    deadline: tuple[assignment_id, ...]
+    non_deadline: tuple[assignment_id, ...]
+
+
+async def get_active_assignment_ids_with_deadlines(
+        conn: asyncpg.Connection, now: datetime.datetime,
+        before: datetime.timedelta, after: datetime.timedelta,
+        with_dates_only: bool = False) -> OpenAssignments:
+    nowts = ts2int(now)
     query = 'SELECT (id, closing, cutoff) FROM MoodleAssignments '
     if with_dates_only:
         query += 'WHERE ((closing IS NOT NULL) AND (closing > $1)) OR ((cutoff IS NOT NULL) AND (cutoff > $1))'
     else:
         query += 'WHERE ((closing IS NULL) OR (closing > $1)) AND ((cutoff IS NULL) OR (cutoff > $1))'
-    results = {}
-    async with conn.cursor(query, now) as cursor:
+    deadline, non_deadline = [], []
+    async with conn.cursor(query, nowts) as cursor:
         async for aid, closing, cutoff in cursor:
-            if closing is not None and closing <= now:
+            closing: t.Optional[int]
+            cutoff: t.Optional[int]
+            if closing is not None and closing <= nowts:
                 closing = None
-            if cutoff is not None and cutoff <= now:
+            if cutoff is not None and cutoff <= nowts:
                 cutoff = None
-            results[aid] = int2ts(closing or cutoff)
-    return results
+            assign_dl = int2ts(closing or cutoff)
+            if (assign_dl is not None) and (assign_dl - before <= now <= assign_dl + after):
+                deadline.append(aid)
+            else:
+                non_deadline.append(aid)
+    return OpenAssignments(deadline=tuple(deadline), non_deadline=tuple(non_deadline))
 
 
-async def load_assignments(conn: asyncpg.Connection, ids: t.Iterable[int]) -> list[Assignment]:
+async def load_assignments(conn: asyncpg.Connection, ids: t.Iterable[assignment_id]) -> list[Assignment]:
     query = 'SELECT (id, course_id, name, opening, closing, cutoff) FROM MoodleAssignments WHERE id = ANY($1::int[])'
     results = []
     async with conn.cursor(query, list(ids)) as cursor:

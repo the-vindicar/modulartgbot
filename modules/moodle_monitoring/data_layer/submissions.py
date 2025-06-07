@@ -2,7 +2,9 @@ import datetime
 import typing as t
 
 import asyncpg
-from .moodle_classes import Submission, SubmittedFile, int2ts, ts2int
+
+from modules.moodle import Submission, SubmittedFile, assignment_id
+from .utils import int2ts, ts2int
 
 
 async def create_tables_submissions(conn: asyncpg.Connection) -> None:
@@ -64,18 +66,18 @@ async def store_submissions(conn: asyncpg.Connection,
 
 
 async def load_submissions_after(conn: asyncpg.Connection,
-                                 assignment_id: int, after: datetime.datetime) -> list[Submission]:
+                                 assign_id: assignment_id, after: datetime.datetime) -> list[Submission]:
     query = '''SELECT (id, assignment_id, user_id, updated) FROM MoodleSubmissions
     WHERE (assignment_id = $1) AND (updated > $2)'''
 
-    async with conn.cursor(query, assignment_id, ts2int(after)) as cursor:
+    async with conn.cursor(query, assign_id, ts2int(after)) as cursor:
         raw_subs = {}
         async for sub_id, assign_id, user_id, updated in cursor:
             raw_subs[sub_id] = (assign_id, user_id, updated, [])
 
     query = '''SELECT (submission_id, filename, filesize, mimetype, url, uploaded)
     FROM MoodleFiles WHERE assignment_id = $1 AND submission_id = ANY($2::int[])'''
-    async with conn.cursor(query, assignment_id, list(raw_subs.keys())) as cursor:
+    async with conn.cursor(query, assign_id, list(raw_subs.keys())) as cursor:
         async for (sub_id, filename, filesize, mimetype, url, uploaded) in cursor:
             sf = SubmittedFile(submission_id=sub_id, url=url, uploaded=uploaded,
                                filename=filename, filesize=filesize, mimetype=mimetype)
@@ -87,10 +89,13 @@ async def load_submissions_after(conn: asyncpg.Connection,
     return result
 
 
-def get_last_submission_times(conn: asyncpg.Connection,
-                              assignment_ids: t.Collection[int]) -> dict[int, datetime.datetime]:
+async def get_last_submission_times(conn: asyncpg.Connection,
+                                    assignment_ids: t.Collection[assignment_id]
+                                    ) -> dict[assignment_id, t.Optional[datetime.datetime]]:
+    result = {aid: None for aid in assignment_ids}
     query = '''SELECT assignment_id, MAX(updated) FROM MoodleSubmissions
     WHERE assignment_id = ANY($1::int[]) GROUP BY assignment_id'''
     async with conn.cursor(query, list(assignment_ids)) as cursor:
-        result = {aid: int2ts(upd) async for aid, upd in cursor}
+        async for aid, upd in cursor:
+            result[aid] = int2ts(upd)
     return result

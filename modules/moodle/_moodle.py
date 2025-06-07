@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-from typing import Any, Union, List, Dict
+import datetime
+from typing import Any, Union, List, Dict, Iterable, AsyncIterable, Optional
 import asyncio
 import logging
 
 import aiohttp
 
+from ._classes import *
 from ._errors import MoodleError, InvalidToken
 from ._funcs import MoodleFunctions
 
@@ -23,6 +25,7 @@ class Moodle:
         self.__password: str = password
         self.__service: str = service
         self.token: str = ''
+        self.timezone: datetime.timezone = datetime.timezone.utc
         self.__session = None
         self.__function = MoodleFunctions(self)
 
@@ -109,3 +112,118 @@ class Moodle:
                 return r.content
             else:
                 raise MoodleError(f'Failed to receive file: [{r.status}]', data=await r.text())
+
+    def _get_datetime(self, item: dict[str, Any], key: str) -> Optional[datetime.datetime]:
+        value: Optional[int] = item.get(key, None)
+        return datetime.datetime.fromtimestamp(value, self.timezone).astimezone(datetime.timezone.utc) \
+            if value is not None else None
+
+    async def stream_available_courses(self,
+                                       in_progress_only: bool = True,
+                                       teachers_capability: str = 'moodle/grade:viewall',
+                                       batch_size: int = 10,
+                                       ) -> AsyncIterable[Course]:
+        offset, limit = 0, batch_size
+        while True:
+            raw_course_data = await self.function.core_course_get_enrolled_courses_by_timeline_classification(
+                classification='inprogress' if in_progress_only else 'all',
+                offset=offset, limit=limit)
+            raw_courses = raw_course_data.get('courses', [])
+            if not raw_courses:
+                break
+            offset = raw_course_data['nextoffset']
+            for item in raw_courses:
+                starts = self._get_datetime(item, 'startdate')
+                ends = self._get_datetime(item, 'enddate')
+                cid = item['id']
+                teachers = [p async for p in self.stream_users_with_cap(cid, teachers_capability)]
+                all_users = [p async for p in self.stream_users_with_cap(cid)]
+                students = [u for u in all_users if u not in teachers]
+                c = Course(id=cid, shortname=item['shortname'], fullname=item['fullname'],
+                           starts=starts, ends=ends, students=tuple(students), teachers=tuple(teachers))
+                yield c
+
+    async def stream_users_with_cap(self,
+                                    courseid: course_id, user_capability: str = '',
+                                    batch_size: int = 50,
+                                    ) -> AsyncIterable[Participant]:
+        options = [
+            {'name': 'userfields', 'value': 'id, fullname, email, roles, groups'}
+        ]
+        if user_capability:
+            options.append({'name': 'withcapability', 'value': user_capability})
+        offset, limit = 0, batch_size
+        while True:
+            limits = [
+                {'name': 'limitfrom', 'value': offset},
+                {'name': 'limitnumber', 'value': limit},
+            ]
+            raw_users = await self.function.get_enrolled_users_with_capability(
+                courseid=courseid, options=options + limits
+            )
+            if not raw_users:
+                break
+            offset += len(raw_users)
+            for raw_user in raw_users:
+                p = Participant(
+                    user=User(id=raw_user['id'], name=raw_user['fullname'], email=raw_user['email']),
+                    groups=tuple([Group(id=g['id'], name=g['name']) for g in raw_user['groups']])
+                )
+                yield p
+
+    async def stream_assignments(self, course_ids: Iterable[course_id]) -> AsyncIterable[Assignment]:
+        response = await self.function.mod_assign_get_assignments(
+            courseids=list(course_ids), includenotenrolledcourses=0
+        )
+        for course in response['courses']:
+            raw_assigns = course['assignments']
+            if not raw_assigns:
+                continue
+            for raw_assign in raw_assigns:
+                a = Assignment(
+                    id=raw_assign['id'],
+                    name=raw_assign['name'],
+                    course_id=raw_assign['course'],
+                    opening=self._get_datetime(raw_assign, 'allowsubmissionsfromdate'),
+                    closing=self._get_datetime(raw_assign, 'duedate'),
+                    cutoff=self._get_datetime(raw_assign, 'cutoffdate')
+                )
+                yield a
+
+    async def stream_submissions(self, assignmentid: assignment_id, submitted_after: datetime.datetime
+                                 ) -> AsyncIterable[Submission]:
+        responce = await self.function.mod_assign_get_submissions(
+            assignmentids=[assignmentid],
+            since=int(submitted_after.astimezone(self.timezone).timestamp())
+        )
+        for raw_assign in responce['assignments']:
+            assign_id = raw_assign['assignmentid']
+            raw_subs = raw_assign.get('submissions', [])
+            if not raw_subs:
+                continue
+            for raw_sub in raw_subs:
+                sub_id = raw_sub['id']
+                uid = raw_sub['userid']
+                files = []
+                for plugin in raw_sub.get('plugins', []):
+                    if plugin['type'] == 'file':
+                        for area in plugin['fileareas']:
+                            if area['area'] == 'submission_files':
+                                for raw_file in area['files']:
+                                    file = SubmittedFile(
+                                        submission_id=sub_id,
+                                        filename=raw_file['filename'],
+                                        mimetype=raw_file['mimetype'],
+                                        filesize=raw_file['filesize'],
+                                        url=raw_file['fileurl'],
+                                        uploaded=self._get_datetime(raw_file, 'timemodified')
+                                    )
+                                    files.append(file)
+                s = Submission(
+                    id=sub_id,
+                    assignment_id=assign_id,
+                    user_id=uid,
+                    updated=self._get_datetime(raw_sub, 'timemodified'),
+                    files=tuple(files)
+                )
+                yield s

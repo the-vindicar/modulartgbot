@@ -4,47 +4,25 @@ import datetime
 
 
 __all__ = [
+    'user_id', 'course_id', 'group_id', 'assignment_id', 'submission_id',
     'User', 'Course', 'Participant', 'Role', 'Group',
     'Assignment', 'Submission', 'SubmittedFile',
-    'ts2int', 'int2ts'
 ]
 
-
-@t.overload
-def ts2int(ts: datetime.datetime) -> int:
-    ...
-
-
-@t.overload
-def ts2int(ts: None) -> None:
-    ...
+_IDType = t.TypeVar('_IDType')
+user_id = t.NewType('user_id', int)
+role_id = t.NewType('role_id', int)
+group_id = t.NewType('group_id', int)
+course_id = t.NewType('course_id', int)
+assignment_id = t.NewType('assignment_id', int)
+submission_id = t.NewType('submission_id', int)
 
 
-def ts2int(ts: t.Optional[datetime.datetime]) -> t.Optional[int]:
-    """Преобразует дату-время в любой часовой зоне в Unix timestamp в часовой зоне UTC, округляя её до секунды."""
-    return int(ts.astimezone(datetime.timezone.utc).timestamp()) if ts is not None else None
-
-
-@t.overload
-def int2ts(val: int) -> datetime.datetime:
-    ...
-
-
-@t.overload
-def int2ts(val: None) -> None:
-    ...
-
-
-def int2ts(val: t.Optional[int]) -> t.Optional[datetime.datetime]:
-    """Преобразует Unix timestamp в часовой зоне UTC в дату-время в той же часовой зоне."""
-    return datetime.datetime.fromtimestamp(val, datetime.timezone.utc) if val is not None else None
-
-
-class _IDMixin:
-    id: int
+class _IDMixin(t.Generic[_IDType]):
+    id: _IDType
 
     def __hash__(self) -> int:
-        return self.id
+        return hash(self.id)
 
     def __eq__(self, other) -> bool:
         return self.id == other.id
@@ -54,21 +32,21 @@ class _IDMixin:
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class User(_IDMixin):
-    id: int
+class User(_IDMixin[user_id]):
+    id: user_id
     name: str
     email: t.Optional[str] = None
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class Role(_IDMixin):
-    id: int
+class Role(_IDMixin[role_id]):
+    id: role_id
     name: str
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class Group(_IDMixin):
-    id: int
+class Group(_IDMixin[group_id]):
+    id: group_id
     name: str
 
 
@@ -84,13 +62,13 @@ class Participant:
         return self.user != other.user
 
     def __hash__(self) -> int:
-        return self.user.id
+        return hash(self.user)
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class Course(_IDMixin):
+class Course(_IDMixin[course_id]):
     """Описывает один курс в Moodle."""
-    id: int
+    id: course_id
     shortname: str
     fullname: str
     students: tuple[Participant, ...]
@@ -100,10 +78,10 @@ class Course(_IDMixin):
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class Assignment(_IDMixin):
+class Assignment(_IDMixin[assignment_id]):
     """Описывает задание в Moodle."""
-    id: int
-    course_id: int
+    id: assignment_id
+    course_id: course_id
     name: str
     opening: t.Optional[datetime.datetime]
     closing: t.Optional[datetime.datetime]
@@ -113,7 +91,7 @@ class Assignment(_IDMixin):
 @dataclasses.dataclass(frozen=True, init=True)
 class SubmittedFile:
     """Описывает файл, прикреплённый к ответу на задание в Moodle."""
-    submission_id: int
+    submission_id: submission_id
     filename: str
     mimetype: str
     filesize: int
@@ -131,10 +109,10 @@ class SubmittedFile:
 
 
 @dataclasses.dataclass(frozen=True, init=True)
-class Submission(_IDMixin):
+class Submission(_IDMixin[submission_id]):
     """Описывает ответ на задание в Moodle."""
-    id: int
-    assignment_id: int
-    user_id: int
+    id: submission_id
+    assignment_id: assignment_id
+    user_id: user_id
     updated: datetime.datetime
     files: tuple[SubmittedFile, ...]

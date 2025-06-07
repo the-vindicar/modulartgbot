@@ -1,4 +1,3 @@
-server_timezone: Europe/Moscow
 courses:
   load_inprogress_only: true
   ignore_no_ending_date: false
