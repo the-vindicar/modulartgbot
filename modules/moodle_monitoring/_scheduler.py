@@ -52,12 +52,15 @@ class ScheduleInterval(t.Generic[_T]):
         :param objects: Коллекция опрашиваемых объектов.
         :param start: С какого момента начать отсчёт интервала."""
         self.events.clear()
-        batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
-        batch_interval = self.duration / batch_count
         ts = start.astimezone(datetime.timezone.utc)
-        for chunk in itertools.batched(objects, self.batch_size):
-            self.events.append((ts, chunk))
-            ts = ts + batch_interval
+        if self.batch_size > 0:
+            batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
+            batch_interval = self.duration / batch_count
+            for chunk in itertools.batched(objects, self.batch_size):
+                self.events.append((ts, chunk))
+                ts = ts + batch_interval
+        else:
+            self.events.append((ts, tuple(objects)))
 
     def pop_past_objects(self, now: datetime.datetime) -> list[_T]:
         now = now.astimezone(datetime.timezone.utc)
