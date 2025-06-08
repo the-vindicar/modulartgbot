@@ -209,7 +209,7 @@ async def get_open_course_ids(conn: asyncpg.Connection,
     :param with_dates_only: Если истина, то курсы, для которых не указаны даты начала/конца, будут игнорироваться.
     :returns Список идентификаторов."""
     nowts = ts2int(now)
-    query = 'SELECT (id) FROM MoodleCourses '
+    query = 'SELECT id FROM MoodleCourses '
     if with_dates_only:
         query += 'WHERE ((starts IS NOT NULL) AND (starts >= $1::int)) AND ((ends IS NOT NULL) AND (ends <= $1::int))'
     else:
@@ -222,25 +222,25 @@ async def get_open_course_ids(conn: asyncpg.Connection,
 async def load_courses(conn: asyncpg.Connection, ids: t.Iterable[course_id]) -> list[Course]:
     """Загружает из базы данных указанный набор курсов."""
     now = ts2int(datetime.datetime.now(datetime.timezone.utc))
-    query = 'SELECT (id, shortname, fullname, starts, ends) FROM MoodleCourses WHERE (id = ANY($2::int[]))'
+    query = 'SELECT id, shortname, fullname, starts, ends FROM MoodleCourses WHERE (id = ANY($2::int[]))'
     course_cursor = conn.cursor(query, now, list(ids))
     async with course_cursor:
         course_rows: list[tuple[course_id, str, str, int | None, int | None]] = [row async for row in course_cursor]
     course_ids = [row[0] for row in course_rows]
-    participant_cursor = conn.cursor('''SELECT (
+    participant_cursor = conn.cursor('''SELECT 
         MoodleParticipants.user_id, MoodleParticipants.course_id, MoodleParticipants.is_teacher,
         MoodleUsers.name, MoodleUsers.email
-        ) FROM MoodleParticipants
+        FROM MoodleParticipants
     INNER JOIN MoodleUsers ON (MoodleUsers.id = MoodleParticipants.user_id)
     WHERE course_id = ANY($1::int[])''', course_ids)
     raw_courses: dict[course_id, dict[user_id, tuple[str, str, bool, list, list]]] = {cid: {} for cid in course_ids}
     async for uid, cid, is_teacher, name, email in participant_cursor:
         raw_courses[cid][uid] = (name, email, is_teacher, [], [])
 
-    group_cursor = conn.cursor('''SELECT (
+    group_cursor = conn.cursor('''SELECT 
         MoodleParticipants.user_id, MoodleParticipants.course_id,
         MoodleGroups.id, MoodleGroups.name
-        ) FROM MoodleParticipants
+        FROM MoodleParticipants
     INNER JOIN MoodleParticipantGroups ON (
         (MoodleParticipantGroups.course_id = MoodleParticipants.course_id) AND
         (MoodleParticipantGroups.user_id = MoodleParticipants.user_id)
@@ -250,10 +250,10 @@ async def load_courses(conn: asyncpg.Connection, ids: t.Iterable[course_id]) -> 
     async for uid, cid, gid, gname in group_cursor:
         raw_courses[cid][uid][3].append((gid, gname))
 
-    role_cursor = conn.cursor('''SELECT (
+    role_cursor = conn.cursor('''SELECT 
         MoodleParticipants.user_id, MoodleParticipants.course_id,
         MoodleRoles.id, MoodleRoles.name
-        ) FROM MoodleParticipants
+        FROM MoodleParticipants
     INNER JOIN MoodleParticipantRoles ON (
         (MoodleParticipantRoles.course_id = MoodleParticipants.course_id) AND
         (MoodleParticipantRoles.user_id = MoodleParticipants.user_id)

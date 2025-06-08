@@ -67,7 +67,7 @@ async def store_submissions(conn: asyncpg.Connection,
 
 async def load_submissions_after(conn: asyncpg.Connection,
                                  assign_id: assignment_id, after: datetime.datetime) -> list[Submission]:
-    query = '''SELECT (id, assignment_id, user_id, updated) FROM MoodleSubmissions
+    query = '''SELECT id, assignment_id, user_id, updated FROM MoodleSubmissions
     WHERE (assignment_id = $1) AND (updated > $2)'''
 
     async with conn.cursor(query, assign_id, ts2int(after)) as cursor:
@@ -75,7 +75,7 @@ async def load_submissions_after(conn: asyncpg.Connection,
         async for sub_id, assign_id, user_id, updated in cursor:
             raw_subs[sub_id] = (assign_id, user_id, updated, [])
 
-    query = '''SELECT (submission_id, filename, filesize, mimetype, url, uploaded)
+    query = '''SELECT submission_id, filename, filesize, mimetype, url, uploaded
     FROM MoodleFiles WHERE assignment_id = $1 AND submission_id = ANY($2::int[])'''
     async with conn.cursor(query, assign_id, list(raw_subs.keys())) as cursor:
         async for (sub_id, filename, filesize, mimetype, url, uploaded) in cursor:

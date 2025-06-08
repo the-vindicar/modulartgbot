@@ -48,7 +48,7 @@ async def get_active_assignment_ids_with_deadlines(
         before: datetime.timedelta, after: datetime.timedelta,
         with_dates_only: bool = False) -> OpenAssignments:
     nowts = ts2int(now)
-    query = 'SELECT (id, closing, cutoff) FROM MoodleAssignments '
+    query = 'SELECT id, closing, cutoff FROM MoodleAssignments '
     if with_dates_only:
         query += 'WHERE ((closing IS NOT NULL) AND (closing > $1)) OR ((cutoff IS NOT NULL) AND (cutoff > $1))'
     else:
@@ -71,7 +71,7 @@ async def get_active_assignment_ids_with_deadlines(
 
 
 async def load_assignments(conn: asyncpg.Connection, ids: t.Iterable[assignment_id]) -> list[Assignment]:
-    query = 'SELECT (id, course_id, name, opening, closing, cutoff) FROM MoodleAssignments WHERE id = ANY($1::int[])'
+    query = 'SELECT id, course_id, name, opening, closing, cutoff FROM MoodleAssignments WHERE id = ANY($1::int[])'
     results = []
     async with conn.cursor(query, list(ids)) as cursor:
         async for aid, cid, name, opening, closing, cutoff in cursor:
