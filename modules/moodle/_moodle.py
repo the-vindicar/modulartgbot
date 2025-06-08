@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
-from typing import Any, Union, List, Dict, Iterable, AsyncIterable, Optional
+from typing import Any, Union, List, Dict, Iterable, Collection, AsyncIterable, Optional
 import asyncio
 import logging
 
@@ -61,15 +61,15 @@ class Moodle:
         for attempt in range(2):
             async with self.__session.get(url, params=params) as r:
                 if r.status >= 400:
-                    raise MoodleError(f'Server responded with error code {r.status}')
+                    raise MoodleError(url=str(r.url), message=f'Server responded with error code {r.status}')
                 try:
                     response = await r.json()
                 except aiohttp.ClientError as err:
-                    raise MoodleError(await r.text()) from err
+                    raise MoodleError(url=str(r.url), message=await r.text()) from err
                 else:
                     if isinstance(response, dict) and 'exception' in response:
                         try:
-                            MoodleError.make_and_raise(response)
+                            MoodleError.make_and_raise(str(r.url), response)
                         except InvalidToken:
                             await self.login()
                             if attempt == 0:
@@ -78,7 +78,7 @@ class Moodle:
                                 raise
                     elif isinstance(key, str):
                         if not isinstance(response, dict) or key not in response:
-                            raise MoodleError(f'Key "{key}" not found in the response')
+                            raise MoodleError(url=str(r.url), message='Key "{key}" not found in the response')
                         else:
                             return response
                     return response
@@ -88,16 +88,16 @@ class Moodle:
         params = dict(username=self.__username, password=self.__password, service=self.__service)
         async with self.__session.get(url, params=params) as r:
             if r.status >= 400:
-                raise MoodleError(f'Server responded with error code {r.status}')
+                raise MoodleError(url=str(r.url), message=f'Server responded with error code {r.status}')
             try:
                 response = await r.json()
             except aiohttp.ClientError as err:
-                raise MoodleError(await r.text()) from err
+                raise MoodleError(url=str(r.url), message=await r.text()) from err
             else:
                 if isinstance(response, dict) and 'exception' in response:
-                    MoodleError.make_and_raise(response)
+                    MoodleError.make_and_raise(str(r.url), response)
                 elif not isinstance(response, dict) or 'token' not in response:
-                    raise MoodleError(f'Key "token" not found in the response')
+                    raise MoodleError(url=str(r.url), message='Key "token" not found in the response')
         self.token = response['token']
 
     async def get_download_fileobj(self, fileurl: str) -> asyncio.StreamReader:
@@ -120,7 +120,7 @@ class Moodle:
 
     async def stream_available_courses(self,
                                        in_progress_only: bool = True,
-                                       teachers_capability: str = 'moodle/grade:viewall',
+                                       teacher_role_ids: Collection[role_id] = tuple(),
                                        batch_size: int = 10,
                                        ) -> AsyncIterable[Course]:
         offset, limit = 0, batch_size
@@ -136,29 +136,30 @@ class Moodle:
                 starts = self._get_datetime(item, 'startdate')
                 ends = self._get_datetime(item, 'enddate')
                 cid = item['id']
-                teachers = [p async for p in self.stream_users_with_cap(cid, teachers_capability)]
-                all_users = [p async for p in self.stream_users_with_cap(cid)]
-                students = [u for u in all_users if u not in teachers]
+                teachers, students = [], []
+                async for p in self.stream_users(cid):
+                    if any(r in teacher_role_ids for r in p.roles):
+                        teachers.append(p)
+                    else:
+                        students.append(p)
                 c = Course(id=cid, shortname=item['shortname'], fullname=item['fullname'],
                            starts=starts, ends=ends, students=tuple(students), teachers=tuple(teachers))
                 yield c
 
-    async def stream_users_with_cap(self,
-                                    courseid: course_id, user_capability: str = '',
-                                    batch_size: int = 50,
-                                    ) -> AsyncIterable[Participant]:
+    async def stream_users(self,
+                           courseid: course_id,
+                           batch_size: int = 50
+                           ) -> AsyncIterable[Participant]:
         options = [
             {'name': 'userfields', 'value': 'id, fullname, email, roles, groups'}
         ]
-        if user_capability:
-            options.append({'name': 'withcapability', 'value': user_capability})
         offset, limit = 0, batch_size
         while True:
             limits = [
                 {'name': 'limitfrom', 'value': offset},
                 {'name': 'limitnumber', 'value': limit},
             ]
-            raw_users = await self.function.get_enrolled_users_with_capability(
+            raw_users = await self.function.core_enrol_get_enrolled_users(
                 courseid=courseid, options=options + limits
             )
             if not raw_users:
@@ -167,7 +168,8 @@ class Moodle:
             for raw_user in raw_users:
                 p = Participant(
                     user=User(id=raw_user['id'], name=raw_user['fullname'], email=raw_user['email']),
-                    groups=tuple([Group(id=g['id'], name=g['name']) for g in raw_user['groups']])
+                    roles=tuple([Role(id=r['roleid'], name=r['name']) for r in raw_user.get('roles', [])]),
+                    groups=tuple([Group(id=g['id'], name=g['name']) for g in raw_user.get('groups', [])]),
                 )
                 yield p
 

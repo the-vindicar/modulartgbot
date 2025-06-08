@@ -7,9 +7,9 @@ import logging
 
 import asyncpg
 
-from modules.moodle import Moodle, course_id, assignment_id
+from modules.moodle import Moodle, course_id, assignment_id, role_id
 from ._config import MoodleMonitorConfig
-from .data_layer import *
+from ._data_layer import *
 
 
 _T = t.TypeVar('_T')
@@ -101,8 +101,8 @@ class Scheduler:
         while True:
             now = datetime.datetime.now(datetime.timezone.utc)
             await self._check_courses(now)
-            await self._check_assignments(now)
-            await self._check_submissions(now)
+            #await self._check_assignments(now)
+            #await self._check_submissions(now)
             try:
                 self.wakeup.clear()
                 await asyncio.wait_for(self.wakeup.wait(), self.__cfg.wakeup_interval_seconds)
@@ -118,7 +118,7 @@ class Scheduler:
                 self.__log.debug('Updating courses we are subscribed to...')
                 course_stream = self.__moodle.stream_available_courses(
                     in_progress_only=self.__cfg.courses.load_inprogress_only,
-                    teachers_capability=self.__cfg.courses.teachers_have_capability,
+                    teacher_role_ids=[role_id(r) for r in self.__cfg.courses.teacher_role_ids],
                     batch_size=self.__cfg.courses.db_batch_size
                 )
                 async for chunk in aiobatch(course_stream, self.__cfg.courses.db_batch_size):

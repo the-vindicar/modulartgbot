@@ -1,10 +1,14 @@
-import datetime
 import typing as t
+import logging
+import datetime
 
 import asyncpg
 
 from modules.moodle import assignment_id, Assignment
 from .utils import ts2int, int2ts
+
+
+log = logging.getLogger('modules.moodlemon.assignments')
 
 
 async def create_tables_assignments(conn: asyncpg.Connection) -> None:

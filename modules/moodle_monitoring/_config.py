@@ -5,7 +5,7 @@ import dataclasses
 class MoodleMonitorCoursesConfig:
     update_interval_seconds: int = 60*60*12
     load_inprogress_only: bool = True
-    teachers_have_capability: str = 'moodle/grade:viewall'
+    teacher_role_ids: list[int] = dataclasses.field(default_factory=list)
     db_batch_size: int = 5
 
 

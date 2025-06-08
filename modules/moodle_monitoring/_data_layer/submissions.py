@@ -36,7 +36,7 @@ async def create_tables_submissions(conn: asyncpg.Connection) -> None:
         FOREIGN KEY (submission_id) REFERENCES MoodleSubmissions (id) ON DELETE CASCADE
     )''')
     await conn.execute('''CREATE INDEX IF NOT EXISTS MoodleFiles_Assignment ON MoodleFiles(assignment_id)''')
-    await conn.execute('''CREATE INDEX IF NOT EXISTS MoodleFiles_Updated ON MoodleFiles(updated)''')
+    await conn.execute('''CREATE INDEX IF NOT EXISTS MoodleFiles_Uploaded ON MoodleFiles(uploaded)''')
 
 
 async def store_submissions(conn: asyncpg.Connection,

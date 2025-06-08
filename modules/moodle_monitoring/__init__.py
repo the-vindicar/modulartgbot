@@ -6,7 +6,7 @@ from api import CoreAPI, background_task
 from modules.moodle import Moodle
 from ._config import MoodleMonitorConfig
 from ._scheduler import Scheduler
-from .data_layer import create_tables
+from ._data_layer import create_tables
 
 
 requires = [asyncpg.Pool, Moodle]

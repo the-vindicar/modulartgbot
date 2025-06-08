@@ -1,7 +1,7 @@
 wakeup_interval_seconds: 60
 courses:
   load_inprogress_only: false
-  teachers_have_capability: "moodle/grade:viewall"
+  teacher_role_ids: [3, 4]
   db_batch_size: 25
   update_interval_seconds: 43200
 assignments:

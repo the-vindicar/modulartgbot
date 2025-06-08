@@ -12,8 +12,8 @@ from api import CoreAPI
 
 __all__ = [
     'Moodle', 'MoodleError',
-    'user_id', 'course_id', 'assignment_id', 'group_id', 'submission_id',
-    'User', 'Group', 'Course', 'Participant', 'Assignment', 'Submission', 'SubmittedFile'
+    'user_id', 'course_id', 'assignment_id', 'group_id', 'role_id', 'submission_id',
+    'User', 'Group', 'Role', 'Course', 'Participant', 'Assignment', 'Submission', 'SubmittedFile'
 ]
 requires = []
 provides = [Moodle]

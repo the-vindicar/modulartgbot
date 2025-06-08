@@ -4,7 +4,7 @@ import datetime
 
 
 __all__ = [
-    'user_id', 'course_id', 'group_id', 'assignment_id', 'submission_id',
+    'user_id', 'course_id', 'role_id', 'group_id', 'assignment_id', 'submission_id',
     'User', 'Course', 'Participant', 'Role', 'Group',
     'Assignment', 'Submission', 'SubmittedFile',
 ]
@@ -53,6 +53,7 @@ class Group(_IDMixin[group_id]):
 @dataclasses.dataclass(frozen=True, init=True)
 class Participant:
     user: User
+    roles: tuple[Role, ...]
     groups: tuple[Group, ...]
 
     def __eq__(self, other: 'Participant') -> bool:
