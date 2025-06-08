@@ -116,7 +116,7 @@ class Scheduler:
         if c:
             try:
                 self.__log.debug('Updating courses we are subscribed to...')
-                course_stream = self.__moodle.stream_available_courses(
+                course_stream = self.__moodle.stream_enrolled_courses(
                     in_progress_only=self.__cfg.courses.load_inprogress_only,
                     teacher_role_ids=[role_id(r) for r in self.__cfg.courses.teacher_role_ids],
                     batch_size=self.__cfg.courses.db_batch_size
