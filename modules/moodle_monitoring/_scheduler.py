@@ -36,8 +36,8 @@ class ScheduleInterval(t.Generic[_T]):
         :param duration: Длительность интервала опроса.
         :param batch_size: Максимальный размер группы, опрашиваемой за один раз.
         """
-        self.duration = duration
-        self.batch_size = batch_size
+        self.duration: datetime.timedelta = duration
+        self.batch_size: int = batch_size
         self.events: list[tuple[datetime.datetime, tuple[_T, ...]]] = []
 
     def is_empty(self) -> bool:
@@ -54,14 +54,16 @@ class ScheduleInterval(t.Generic[_T]):
         self.events.clear()
         if not objects:
             return
-        ts = start.astimezone(datetime.timezone.utc)
+
         if self.batch_size > 0:
             batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
             batch_interval = self.duration / batch_count
+            ts = start.astimezone(datetime.timezone.utc) + batch_interval
             for chunk in itertools.batched(objects, self.batch_size):
                 self.events.append((ts, chunk))
                 ts = ts + batch_interval
         else:
+            ts = start.astimezone(datetime.timezone.utc) + self.duration
             self.events.append((ts, tuple(objects)))
 
     def pop_past_objects(self, now: datetime.datetime) -> list[_T]:
@@ -101,10 +103,12 @@ class Scheduler:
 
     async def scheduler_task(self) -> t.NoReturn:
         while True:
-            now = datetime.datetime.now(datetime.timezone.utc)
+            #now = datetime.datetime.now(datetime.timezone.utc)
+            now = datetime.datetime(2025, 5, 26, 12, 0, 0, tzinfo=datetime.timezone.utc)
             await self._check_courses(now)
             await self._check_assignments(now)
-            await self._check_submissions(now)
+            await self._check_submissions_deadline(now)
+            await self._check_submissions_active(now)
             try:
                 self.wakeup.clear()
                 await asyncio.wait_for(self.wakeup.wait(), self.__cfg.wakeup_interval_seconds)
@@ -160,43 +164,57 @@ class Scheduler:
                 self.__log.info('Assignments updated successfully for course(s) %s',
                                 ', '.join(f'#{cid}({count})' for cid, count in total.items()))
 
-    async def _check_submissions(self, now: datetime.datetime) -> None:
-        if self.__update_open_submissions.is_empty() or self.__update_deadline_submissions.is_empty():
+    async def _check_submissions_active(self, now: datetime.datetime) -> None:
+        if self.__update_open_submissions.is_empty():
             try:
                 async with self.__conn.transaction(readonly=True):
-                    assigns = await get_active_assignment_ids_with_deadlines(
+                    assigns = await get_active_assignments_ending_later(
                         self.__conn, now=now,
                         before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
-                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
-                        with_dates_only=False)
+                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds)
+                    )
             except Exception as err:
                 self.__log.error('Failed to get active assignments!', exc_info=err)
             else:
-                if self.__update_open_submissions.is_empty():
-                    self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns.non_deadline))
-                    self.__update_open_submissions.set_queried_objects(assigns.non_deadline, now)
-                if self.__update_deadline_submissions.is_empty():
-                    self.__log.debug('Tracking %d open deadline assignments.', len(assigns.deadline))
-                    self.__update_deadline_submissions.set_queried_objects(assigns.deadline, now)
-        for sched in (self.__update_deadline_submissions, self.__update_open_submissions):
-            assign_ids = sched.pop_past_objects(now)
+                if assigns:
+                    self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns))
+                self.__update_open_submissions.set_queried_objects(assigns, now)
+        assign_ids = self.__update_open_submissions.pop_past_objects(now)
+        if assign_ids:
+            await self._update_submissions_for(assign_ids)
+
+    async def _check_submissions_deadline(self, now: datetime.datetime) -> None:
+        if self.__update_deadline_submissions.is_empty():
+            try:
+                async with self.__conn.transaction(readonly=True):
+                    assigns = await get_active_assignments_ending_soon(
+                        self.__conn, now=now,
+                        before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
+                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
+                        )
+            except Exception as err:
+                self.__log.error('Failed to get active assignments!', exc_info=err)
+            else:
+                if assigns:
+                    self.__log.debug('Tracking %d open deadline assignments.', len(assigns))
+                self.__update_deadline_submissions.set_queried_objects(assigns, now)
+            assign_ids = self.__update_deadline_submissions.pop_past_objects(now)
             if assign_ids:
-                try:
-                    async with self.__conn.transaction(readonly=True):
-                        subtimes = await get_last_submission_times(self.__conn, assign_ids)
-                    for aid, lastsub in subtimes.items():
-                        self.__log.debug('Updating submissions for assignment #%d...', aid)
-                        if lastsub is not None:
-                            start_time = lastsub
-                        else:
-                            start_time = datetime.datetime.min.astimezone(self.__moodle.timezone)
-                        start_time += datetime.timedelta(seconds=1)
-                        assign_stream = self.__moodle.stream_submissions(aid, start_time)
-                        total = 0
-                        async for chunk in aiobatch(assign_stream, self.__cfg.submissions.db_batch_size):
-                            total += len(chunk)
-                            async with self.__conn.transaction(readonly=False):
-                                await store_submissions(self.__conn, chunk)
-                        self.__log.debug('Found %d new submissions for assignment #%d.', total, aid)
-                except Exception as err:
-                    self.__log.error('Failed to update submissions!', exc_info=err)
+                await self._update_submissions_for(assign_ids)
+
+    async def _update_submissions_for(self, assign_ids: t.Collection[assignment_id]):
+        try:
+            async with self.__conn.transaction(readonly=True):
+                subtimes = await get_last_submission_times(self.__conn, assign_ids)
+            for aid, lastsub in subtimes.items():
+                self.__log.debug('Updating submissions for assignment #%d...', aid)
+                start_time = lastsub + datetime.timedelta(seconds=1) if lastsub is not None else None
+                assign_stream = self.__moodle.stream_submissions(aid, submitted_after=start_time)
+                total = 0
+                async for chunk in aiobatch(assign_stream, self.__cfg.submissions.db_batch_size):
+                    total += len(chunk)
+                    async with self.__conn.transaction(readonly=False):
+                        await store_submissions(self.__conn, chunk)
+                self.__log.debug('Found %d new submissions for assignment #%d.', total, aid)
+        except Exception as err:
+            self.__log.error('Failed to update submissions!', exc_info=err)

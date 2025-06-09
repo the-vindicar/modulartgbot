@@ -38,48 +38,58 @@ async def store_assignments(conn: asyncpg.Connection, assignments: t.Collection[
     ''', raw_assigns)
 
 
-class OpenAssignments(t.NamedTuple):
-    """Два набора заданий - те, у которых срок вскоре истекает или недавно истёк (срочные),
-    и те, у которых срок не задан или истекает ещё не скоро."""
-    deadline: tuple[assignment_id, ...]
-    non_deadline: tuple[assignment_id, ...]
-
-
-async def get_active_assignment_ids_with_deadlines(
-        conn: asyncpg.Connection, now: datetime.datetime,
-        before: datetime.timedelta, after: datetime.timedelta,
-        with_dates_only: bool = False) -> OpenAssignments:
-    """Загружает все индентификаторы заданий (assignment), которые активны в указанный момент времени.
+async def get_active_assignments_ending_soon(
+        conn: asyncpg.Connection,
+        now: datetime.datetime, before: datetime.timedelta, after: datetime.timedelta) -> list[assignment_id]:
+    """Загружает все индентификаторы заданий (assignment), которые скоро завершаются.
+    Под "завершаются" понимается либо ожидаемый срок сдачи задания (проверяемый интервал `now-before...now+after`),
+    либо срок полного закрытия задания (проверяемый интервал `now-before...now+after`).
+    Как минимум один из этих сроков должен быть указан для задания.
     :param conn: Соединение с БД
-    :param now: Момент времени, когда задание должно быть активно.
-    :param after: Интервал времени до закрытия задания, когда оно считается срочным.
-    :param before: Интервал времени после закрытия задания, когда оно считается срочным.
-    :param with_dates_only: Если ложь, то задания без указанного времени начала или завершения
-    тоже будут считаться активными.
-    :return: Список экземпляров класса :class:`OpenAssignments`.
+    :param now: Какой момент времени считается "сейчас".
+    :param before: За какой интервал времени до завершения задания оно считается "скоро завершающимся".
+    :param after: В какой интервал времени после срока сдачи задания оно считается "скоро завершающимся".
+    :return: Список идентификаторов заданий.
     """
+    beforets = ts2int(now - before)
+    afterts = ts2int(now + after)
     nowts = ts2int(now)
-    nowafterts = ts2int(now - after) if after is not None else ts2int(now)
-    query = 'SELECT id, closing, cutoff FROM MoodleAssignments '
-    if with_dates_only:
-        query += 'WHERE ((closing IS NOT NULL) AND (closing > $1)) OR ((cutoff IS NOT NULL) AND (cutoff > $2))'
-    else:
-        query += 'WHERE ((closing IS NULL) OR (closing > $1)) AND ((cutoff IS NULL) OR (cutoff > $2))'
-    deadline, non_deadline = [], []
-    cursor = conn.cursor(query, nowafterts, nowts)
-    async for aid, closing, cutoff in cursor:
-        closing: t.Optional[int]
-        cutoff: t.Optional[int]
-        if closing is not None and closing <= nowafterts:
-            closing = None
-        if cutoff is not None and cutoff <= nowts:
-            cutoff = None
-        assign_dl = int2ts(closing or cutoff)
-        if (assign_dl is not None) and (assign_dl - before <= now <= assign_dl + after):
-            deadline.append(aid)
-        else:
-            non_deadline.append(aid)
-    return OpenAssignments(deadline=tuple(deadline), non_deadline=tuple(non_deadline))
+    query = '''SELECT id FROM MoodleAssignments WHERE 
+    ((closing IS NOT NULL) OR (cutoff IS NOT NULL)) AND 
+    ((opening IS NULL) OR (opening <= $3)) AND
+    ((closing is NULL) OR ((closing >= $1) AND (closing <= $2))) AND 
+    ((cutoff is NULL) OR ((cutoff >= $1) AND (cutoff <= $2))) 
+    '''
+    cursor = conn.cursor(query, beforets, afterts, nowts)
+    deadline = [aid async for (aid,) in cursor]
+    return deadline
+
+
+async def get_active_assignments_ending_later(
+        conn: asyncpg.Connection,
+        now: datetime.datetime, before: datetime.timedelta, after: datetime.timedelta) -> list[assignment_id]:
+    """Загружает все идентификаторы заданий (assignment), которые открыты, но завершаются НЕ в ближайшее время.
+    Под "завершаются" понимается либо ожидаемый срок сдачи задания (проверяемый интервал `now-before...now+after`),
+    либо срок полного закрытия задания (проверяемый интервал `now-before...now+after`).
+    Если у задания не указан срок открытия, то оно считается открытым.
+    :param conn: Соединение с БД
+    :param now: Какой момент времени считается "сейчас".
+    :param before: За какой интервал времени до завершения задания оно считается "скоро завершающимся".
+    :param after: В какой интервал времени после срока сдачи задания оно считается "скоро завершающимся".
+    :return: Список идентификаторов заданий.
+    """
+    beforets = ts2int(now - before)
+    afterts = ts2int(now + after)
+    nowts = ts2int(now)
+
+    query = '''SELECT id FROM MoodleAssignments WHERE
+    ((opening IS NULL) OR (opening <= $3)) AND
+    ((closing IS NULL) OR (closing > $2) OR (closing < $1)) AND 
+    ((cutoff IS NULL) OR (cutoff > $2))
+    '''
+    cursor = conn.cursor(query, beforets, afterts, nowts)
+    active = [aid async for (aid,) in cursor]
+    return active
 
 
 async def load_assignments(conn: asyncpg.Connection, ids: t.Iterable[assignment_id]) -> list[Assignment]:
