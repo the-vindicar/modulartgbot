@@ -211,9 +211,9 @@ async def get_open_course_ids(conn: asyncpg.Connection,
     nowts = ts2int(now)
     query = 'SELECT id FROM MoodleCourses '
     if with_dates_only:
-        query += 'WHERE ((starts IS NOT NULL) AND (starts >= $1::int)) AND ((ends IS NOT NULL) AND (ends <= $1::int))'
+        query += 'WHERE ((starts IS NOT NULL) AND (starts <= $1::int)) AND ((ends IS NOT NULL) AND (ends >= $1::int))'
     else:
-        query += 'WHERE ((starts IS NULL) OR (starts >= $1::int)) AND ((ends IS NULL) OR (ends <= $1::int))'
+        query += 'WHERE ((starts IS NULL) OR (starts <= $1::int)) AND ((ends IS NULL) OR (ends >= $1::int))'
     cursor = conn.cursor(query, nowts)
     rows = [cid async for (cid,) in cursor]
     return rows

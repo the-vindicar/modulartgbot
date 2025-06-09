@@ -15,7 +15,7 @@ provides = []
 
 async def lifetime(api: CoreAPI):
     log = logging.getLogger('modules.moodlemon')
-    cfg = await api.config.load('moodle_monitor', MoodleMonitorConfig)
+    cfg = await api.config.load('moodle_monitoring', MoodleMonitorConfig)
     dbpool = await api(asyncpg.Pool)
     moodle = await api(Moodle)
     async with dbpool.acquire() as connection:

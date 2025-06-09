@@ -65,23 +65,37 @@ async def store_submissions(conn: asyncpg.Connection,
     del raw_files
 
 
-async def load_submissions_after(conn: asyncpg.Connection,
-                                 assign_id: assignment_id, after: datetime.datetime) -> list[Submission]:
+async def load_submissions(conn: asyncpg.Connection, assign_id: assignment_id,
+                           after: datetime.datetime = None, before: datetime.datetime = None) -> list[Submission]:
+    """Загружает все ответы, отправленные на указанное задание в указанный интервал времени.
+    :param conn: Соединение с БД
+    :param assign_id: Идентификатор задания (assignment)
+    :param after: Момент времени, после которого должны быть отправлены ответы (включительно).
+    :param before: Момент времени, до которого должны быть отправлены ответы (включительно).
+    :return: Список экземпляров класса :class:`Submission`.
+    """
     query = '''SELECT id, assignment_id, user_id, updated FROM MoodleSubmissions
-    WHERE (assignment_id = $1) AND (updated > $2)'''
+    WHERE (assignment_id = $1)'''
+    args = [assign_id]
+    if after is not None:
+        query += f' AND (updated >= ${len(args)+1})'
+        args.append(ts2int(after))
+    if before is not None:
+        query += f' AND (updated <= ${len(args)+1})'
+        args.append(ts2int(before))
 
-    async with conn.cursor(query, assign_id, ts2int(after)) as cursor:
-        raw_subs = {}
-        async for sub_id, assign_id, user_id, updated in cursor:
-            raw_subs[sub_id] = (assign_id, user_id, updated, [])
+    cursor = conn.cursor(query, assign_id, *args)
+    raw_subs = {}
+    async for sub_id, assign_id, user_id, updated in cursor:
+        raw_subs[sub_id] = (assign_id, user_id, updated, [])
 
     query = '''SELECT submission_id, filename, filesize, mimetype, url, uploaded
     FROM MoodleFiles WHERE assignment_id = $1 AND submission_id = ANY($2::int[])'''
-    async with conn.cursor(query, assign_id, list(raw_subs.keys())) as cursor:
-        async for (sub_id, filename, filesize, mimetype, url, uploaded) in cursor:
-            sf = SubmittedFile(submission_id=sub_id, url=url, uploaded=uploaded,
-                               filename=filename, filesize=filesize, mimetype=mimetype)
-            raw_subs[sub_id][3].append(sf)
+    cursor = conn.cursor(query, assign_id, list(raw_subs.keys()))
+    async for (sub_id, filename, filesize, mimetype, url, uploaded) in cursor:
+        sf = SubmittedFile(submission_id=sub_id, url=url, uploaded=uploaded,
+                           filename=filename, filesize=filesize, mimetype=mimetype)
+        raw_subs[sub_id][3].append(sf)
     result = [
         Submission(id=sub_id, assignment_id=assign_id, user_id=user_id, updated=updated, files=tuple(files))
         for sub_id, (assign_id, user_id, updated, files) in raw_subs.items()
@@ -92,10 +106,15 @@ async def load_submissions_after(conn: asyncpg.Connection,
 async def get_last_submission_times(conn: asyncpg.Connection,
                                     assignment_ids: t.Collection[assignment_id]
                                     ) -> dict[assignment_id, t.Optional[datetime.datetime]]:
+    """Загружает время последнего ответа, отправленного на указанные задания.
+    :param conn: Соединение с БД
+    :param assignment_ids: Идентификаторы заданий (assignment)
+    :return: Набор пар "id задания - время". Если на задание нет ответов, для этого задания будет возвращено None.
+    """
     result = {aid: None for aid in assignment_ids}
     query = '''SELECT assignment_id, MAX(updated) FROM MoodleSubmissions
     WHERE assignment_id = ANY($1::int[]) GROUP BY assignment_id'''
-    async with conn.cursor(query, list(assignment_ids)) as cursor:
-        async for aid, upd in cursor:
-            result[aid] = int2ts(upd)
+    cursor = conn.cursor(query, list(assignment_ids))
+    async for aid, upd in cursor:
+        result[aid] = int2ts(upd)
     return result

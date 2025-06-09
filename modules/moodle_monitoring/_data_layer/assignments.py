@@ -31,7 +31,7 @@ async def store_assignments(conn: asyncpg.Connection, assignments: t.Collection[
         (a.id, a.course_id, a.name, ts2int(a.opening), ts2int(a.closing), ts2int(a.cutoff))
         for a in assignments
     ]
-    await conn.execute('''INSERT INTO MoodleAssignments
+    await conn.executemany('''INSERT INTO MoodleAssignments
     (id, course_id, name, opening, closing, cutoff) VALUES ($1, $2, $3, $4, $5, $6)
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name, opening = EXCLUDED.opening, closing = EXCLUDED.closing, cutoff = EXCLUDED.cutoff
@@ -39,6 +39,8 @@ async def store_assignments(conn: asyncpg.Connection, assignments: t.Collection[
 
 
 class OpenAssignments(t.NamedTuple):
+    """Два набора заданий - те, у которых срок вскоре истекает или недавно истёк (срочные),
+    и те, у которых срок не задан или истекает ещё не скоро."""
     deadline: tuple[assignment_id, ...]
     non_deadline: tuple[assignment_id, ...]
 
@@ -47,35 +49,45 @@ async def get_active_assignment_ids_with_deadlines(
         conn: asyncpg.Connection, now: datetime.datetime,
         before: datetime.timedelta, after: datetime.timedelta,
         with_dates_only: bool = False) -> OpenAssignments:
+    """Загружает все индентификаторы заданий (assignment), которые активны в указанный момент времени.
+    :param conn: Соединение с БД
+    :param now: Момент времени, когда задание должно быть активно.
+    :param after: Интервал времени до закрытия задания, когда оно считается срочным.
+    :param before: Интервал времени после закрытия задания, когда оно считается срочным.
+    :param with_dates_only: Если ложь, то задания без указанного времени начала или завершения
+    тоже будут считаться активными.
+    :return: Список экземпляров класса :class:`OpenAssignments`.
+    """
     nowts = ts2int(now)
+    nowafterts = ts2int(now - after) if after is not None else ts2int(now)
     query = 'SELECT id, closing, cutoff FROM MoodleAssignments '
     if with_dates_only:
-        query += 'WHERE ((closing IS NOT NULL) AND (closing > $1)) OR ((cutoff IS NOT NULL) AND (cutoff > $1))'
+        query += 'WHERE ((closing IS NOT NULL) AND (closing > $1)) OR ((cutoff IS NOT NULL) AND (cutoff > $2))'
     else:
-        query += 'WHERE ((closing IS NULL) OR (closing > $1)) AND ((cutoff IS NULL) OR (cutoff > $1))'
+        query += 'WHERE ((closing IS NULL) OR (closing > $1)) AND ((cutoff IS NULL) OR (cutoff > $2))'
     deadline, non_deadline = [], []
-    async with conn.cursor(query, nowts) as cursor:
-        async for aid, closing, cutoff in cursor:
-            closing: t.Optional[int]
-            cutoff: t.Optional[int]
-            if closing is not None and closing <= nowts:
-                closing = None
-            if cutoff is not None and cutoff <= nowts:
-                cutoff = None
-            assign_dl = int2ts(closing or cutoff)
-            if (assign_dl is not None) and (assign_dl - before <= now <= assign_dl + after):
-                deadline.append(aid)
-            else:
-                non_deadline.append(aid)
+    cursor = conn.cursor(query, nowafterts, nowts)
+    async for aid, closing, cutoff in cursor:
+        closing: t.Optional[int]
+        cutoff: t.Optional[int]
+        if closing is not None and closing <= nowafterts:
+            closing = None
+        if cutoff is not None and cutoff <= nowts:
+            cutoff = None
+        assign_dl = int2ts(closing or cutoff)
+        if (assign_dl is not None) and (assign_dl - before <= now <= assign_dl + after):
+            deadline.append(aid)
+        else:
+            non_deadline.append(aid)
     return OpenAssignments(deadline=tuple(deadline), non_deadline=tuple(non_deadline))
 
 
 async def load_assignments(conn: asyncpg.Connection, ids: t.Iterable[assignment_id]) -> list[Assignment]:
     query = 'SELECT id, course_id, name, opening, closing, cutoff FROM MoodleAssignments WHERE id = ANY($1::int[])'
     results = []
-    async with conn.cursor(query, list(ids)) as cursor:
-        async for aid, cid, name, opening, closing, cutoff in cursor:
-            a = Assignment(id=aid, course_id=cid, name=name,
-                           opening=int2ts(opening), closing=int2ts(closing), cutoff=int2ts(cutoff))
-            results.append(a)
+    cursor = conn.cursor(query, list(ids))
+    async for aid, cid, name, opening, closing, cutoff in cursor:
+        a = Assignment(id=aid, course_id=cid, name=name,
+                       opening=int2ts(opening), closing=int2ts(closing), cutoff=int2ts(cutoff))
+        results.append(a)
     return results

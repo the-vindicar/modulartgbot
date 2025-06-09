@@ -52,6 +52,8 @@ class ScheduleInterval(t.Generic[_T]):
         :param objects: Коллекция опрашиваемых объектов.
         :param start: С какого момента начать отсчёт интервала."""
         self.events.clear()
+        if not objects:
+            return
         ts = start.astimezone(datetime.timezone.utc)
         if self.batch_size > 0:
             batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
@@ -101,8 +103,8 @@ class Scheduler:
         while True:
             now = datetime.datetime.now(datetime.timezone.utc)
             await self._check_courses(now)
-            #await self._check_assignments(now)
-            #await self._check_submissions(now)
+            await self._check_assignments(now)
+            await self._check_submissions(now)
             try:
                 self.wakeup.clear()
                 await asyncio.wait_for(self.wakeup.wait(), self.__cfg.wakeup_interval_seconds)
@@ -131,9 +133,15 @@ class Scheduler:
 
     async def _check_assignments(self, now: datetime.datetime) -> None:
         if self.__update_assignments.is_empty():
-            async with self.__conn.transaction(readonly=True):
-                course_ids = await get_open_course_ids(self.__conn, now, with_dates_only=False)
-            self.__update_assignments.set_queried_objects(course_ids, now)
+            try:
+                async with self.__conn.transaction(readonly=True):
+                    course_ids = await get_open_course_ids(self.__conn, now, with_dates_only=False)
+            except Exception as err:
+                self.__log.error('Failed to get open courses!', exc_info=err)
+            else:
+                self.__log.debug('%d open courses found, tracking: %s', len(course_ids),
+                                 ', '.join(f'#{cid}' for cid in course_ids))
+                self.__update_assignments.set_queried_objects(course_ids, now)
         course_ids = self.__update_assignments.pop_past_objects(now)
         if course_ids:
             try:
@@ -154,23 +162,29 @@ class Scheduler:
 
     async def _check_submissions(self, now: datetime.datetime) -> None:
         if self.__update_open_submissions.is_empty() or self.__update_deadline_submissions.is_empty():
-            async with self.__conn.transaction(readonly=True):
-                assigns = await get_active_assignment_ids_with_deadlines(
-                    self.__conn, now=now,
-                    before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
-                    after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
-                    with_dates_only=False)
-            if self.__update_open_submissions.is_empty():
-                self.__update_open_submissions.set_queried_objects(assigns.deadline, now)
-            if self.__update_deadline_submissions.is_empty():
-                self.__update_deadline_submissions.set_queried_objects(assigns.non_deadline, now)
+            try:
+                async with self.__conn.transaction(readonly=True):
+                    assigns = await get_active_assignment_ids_with_deadlines(
+                        self.__conn, now=now,
+                        before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
+                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
+                        with_dates_only=False)
+            except Exception as err:
+                self.__log.error('Failed to get active assignments!', exc_info=err)
+            else:
+                if self.__update_open_submissions.is_empty():
+                    self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns.non_deadline))
+                    self.__update_open_submissions.set_queried_objects(assigns.non_deadline, now)
+                if self.__update_deadline_submissions.is_empty():
+                    self.__log.debug('Tracking %d open deadline assignments.', len(assigns.deadline))
+                    self.__update_deadline_submissions.set_queried_objects(assigns.deadline, now)
         for sched in (self.__update_deadline_submissions, self.__update_open_submissions):
             assign_ids = sched.pop_past_objects(now)
             if assign_ids:
-                async with self.__conn.transaction(readonly=True):
-                    subtimes = await get_last_submission_times(self.__conn, assign_ids)
-                for aid, lastsub in subtimes.items():
-                    try:
+                try:
+                    async with self.__conn.transaction(readonly=True):
+                        subtimes = await get_last_submission_times(self.__conn, assign_ids)
+                    for aid, lastsub in subtimes.items():
                         self.__log.debug('Updating submissions for assignment #%d...', aid)
                         if lastsub is not None:
                             start_time = lastsub
@@ -183,7 +197,6 @@ class Scheduler:
                             total += len(chunk)
                             async with self.__conn.transaction(readonly=False):
                                 await store_submissions(self.__conn, chunk)
-                    except Exception as err:
-                        self.__log.error('Failed to update submissions!', exc_info=err)
-                    else:
                         self.__log.debug('Found %d new submissions for assignment #%d.', total, aid)
+                except Exception as err:
+                    self.__log.error('Failed to update submissions!', exc_info=err)
