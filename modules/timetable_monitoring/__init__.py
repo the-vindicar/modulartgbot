@@ -104,6 +104,9 @@ async def notify_teachers(bot: aiogram.Bot,
     """Выполняет рассылку уведомлений тем преподавателям, для которых мы знаем telegram ID."""
     log.info('Sending notifications...')
     for user, changes in notifications:
+        if not user.tgid:
+            log.debug('Skipping notifying %s (unknown tgid)', user.name)
+            continue
         try:
             log.debug('Notifying %s (tgid:%s)', user.name, user.tgid)
             # формируем текст уведомления
