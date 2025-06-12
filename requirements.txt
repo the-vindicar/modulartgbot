@@ -1,4 +1,6 @@
 pyyaml
+annotated-types
+pydantic==2.*
 python-dotenv
 asyncpg
 aiohttp

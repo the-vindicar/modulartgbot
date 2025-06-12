@@ -7,7 +7,7 @@ import logging
 
 import asyncpg
 
-from modules.moodle import Moodle, course_id, assignment_id, role_id
+from modules.moodle import MoodleAdapter, course_id, assignment_id, role_id
 from ._config import MoodleMonitorConfig
 from ._data_layer import *
 
@@ -79,7 +79,7 @@ class ScheduleInterval(t.Generic[_T]):
 
 class Scheduler:
     def __init__(self, cfg: MoodleMonitorConfig, log: logging.Logger,
-                 moodle: Moodle, conn: asyncpg.Connection):
+                 moodle: MoodleAdapter, conn: asyncpg.Connection):
         self.__moodle = moodle
         self.__conn = conn
         self.__cfg = cfg

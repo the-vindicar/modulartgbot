@@ -3,13 +3,13 @@ import logging
 import asyncpg
 
 from api import CoreAPI, background_task
-from modules.moodle import Moodle
+from modules.moodle import MoodleAdapter
 from ._config import MoodleMonitorConfig
 from ._scheduler import Scheduler
 from ._data_layer import create_tables
 
 
-requires = [asyncpg.Pool, Moodle]
+requires = [asyncpg.Pool, MoodleAdapter]
 provides = []
 
 
@@ -17,7 +17,7 @@ async def lifetime(api: CoreAPI):
     log = logging.getLogger('modules.moodlemon')
     cfg = await api.config.load('moodle_monitoring', MoodleMonitorConfig)
     dbpool = await api(asyncpg.Pool)
-    moodle = await api(Moodle)
+    moodle = await api(MoodleAdapter)
     async with dbpool.acquire() as connection:
         connection: asyncpg.Connection
         async with connection.transaction():
