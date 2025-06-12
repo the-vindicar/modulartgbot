@@ -1,18 +1,13 @@
 import asyncio
-from modules.moodle.moodle import *
+from modules.moodle import *
 
 
 async def main():
-    m = Moodle('https://sdo.kosgos.ru', input('Username: '), input('Password: '))
+    m = MoodleAdapter('https://sdo.kosgos.ru', input('Username: '), input('Password: '))
     async with m:
         await m.login()
-
-        cs = await m.function.core_course_get_enrolled_courses_by_timeline_classification(
-            classification=CourseTimelineClassification.ALL,
-            offset=0, limit=50
-        )
-        for c in cs.courses:
-            print(f'[{c.id}] {c.fullname}')
+        async for c in m.stream_enrolled_courses(True, [role_id(3)]):
+            print(f'[{c.id}] {c.fullname} ({len(c.teachers)} teachers, {len(c.students)} students)')
 
 
 if __name__ == '__main__':

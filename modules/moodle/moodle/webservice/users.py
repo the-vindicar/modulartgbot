@@ -5,7 +5,7 @@ from .common import *
 
 __all__ = [
     'UsersMixin',
-    'RCourseMention', 'REnrolledUser', 'REnrolledUsers',
+    'RCourseMention', 'REnrolledUser',
     'RGroup', 'RRole', 'RPreference', 'RCustomField',
 ]
 
@@ -72,17 +72,13 @@ class REnrolledUser(BaseModel):
     enrolledcourses: Optional[list[RCourseMention]] = None
 
 
-class REnrolledUsers(RootModel[list[REnrolledUser]]):
-    pass
-
-
 class UsersMixin:
     async def core_enrol_get_enrolled_users(
             self: WebServiceAdapter,
             courseid: int,
             options: Collection[Option]
-    ) -> REnrolledUsers:
+    ) -> list[REnrolledUser]:
         return await self(
             'core_enrol_get_enrolled_users', dict(
                 courseid=courseid, options=options
-            ), model=REnrolledUsers)
+            ), model=list[REnrolledUser])

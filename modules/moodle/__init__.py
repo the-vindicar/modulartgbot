@@ -68,8 +68,8 @@ class MoodleAdapter(Moodle):
             )
             if not raw_users:
                 break
-            offset += len(raw_users.root)
-            for raw_user in raw_users.root:
+            offset += len(raw_users)
+            for raw_user in raw_users:
                 p = Participant(
                     user=User(id=raw_user.id, name=raw_user.fullname, email=raw_user.email),
                     roles=tuple([Role(id=r.roleid, name=r.name) for r in raw_user.roles or ()]),
