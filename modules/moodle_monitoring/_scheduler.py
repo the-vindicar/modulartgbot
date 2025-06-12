@@ -2,12 +2,12 @@ import typing as t
 import asyncio
 import collections
 import datetime
-import itertools
 import logging
 
 import asyncpg
 
 from modules.moodle import MoodleAdapter, course_id, assignment_id, role_id
+from api import IntervalScheduler
 from ._config import MoodleMonitorConfig
 from ._data_layer import *
 
@@ -27,62 +27,6 @@ async def aiobatch(src: t.AsyncIterable[_T], batch_size: int) -> t.AsyncIterable
         yield batch_list
 
 
-class ScheduleInterval(t.Generic[_T]):
-    """Описывает один цикл опроса, в течении которого происходит опрос всех указанных объектов."""
-    def __init__(self,
-                 duration: datetime.timedelta,
-                 batch_size: int = 1,
-                 offset: t.Literal['begin', 'end'] = 'end'):
-        """
-        :param duration: Длительность интервала опроса.
-        :param batch_size: Максимальный размер группы, опрашиваемой за один раз.
-        """
-        self.duration: datetime.timedelta = duration
-        self.batch_size: int = batch_size
-        self.offset = offset
-        self.events: list[tuple[datetime.datetime, tuple[_T, ...]]] = []
-
-    def is_empty(self) -> bool:
-        """Возвращает истину, если не осталось опрашиваемых объектов, и список пора обновить."""
-        return not bool(self.events)
-
-    def set_queried_objects(self, objects: t.Collection[_T], start: datetime.datetime) -> None:
-        """Задаёт список объектов, которые должны быть опрошены в течение одного интервала.
-        Интервал начинается с указанного момента, объекты распределяются по нему равномерно,
-        группами не более заданного размера.
-
-        :param objects: Коллекция опрашиваемых объектов.
-        :param start: С какого момента начать отсчёт интервала."""
-        self.events.clear()
-        if not objects:
-            return
-
-        if self.batch_size > 0:
-            batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
-            batch_interval = self.duration / batch_count
-            ts = start.astimezone(datetime.timezone.utc)
-            if self.offset != 'begin':
-                ts += batch_interval
-            for chunk in itertools.batched(objects, self.batch_size):
-                self.events.append((ts, chunk))
-                ts = ts + batch_interval
-            if self.offset == 'begin':
-                self.events.append((ts, ()))
-        else:
-            ts = start.astimezone(datetime.timezone.utc) + self.duration
-            self.events.append((ts, tuple(objects)))
-
-    def pop_past_objects(self, now: datetime.datetime) -> list[_T]:
-        now = now.astimezone(datetime.timezone.utc)
-        past = []
-        for i in range(len(self.events) - 1, -1, -1):
-            ts, objects = self.events[i]
-            if ts <= now:
-                del self.events[i]
-                past.extend(objects)
-        return past
-
-
 class Scheduler:
     def __init__(self, cfg: MoodleMonitorConfig, log: logging.Logger,
                  moodle: MoodleAdapter, conn: asyncpg.Connection):
@@ -91,32 +35,35 @@ class Scheduler:
         self.__cfg = cfg
         self.__log = log
         self.wakeup = asyncio.Event()
-        self.__update_courses = ScheduleInterval[None](
+        self.__update_courses = IntervalScheduler[None](
             duration=datetime.timedelta(seconds=self.__cfg.courses.update_interval_seconds),
-            batch_size=1, offset='begin'
+            batch_size=1, offset=0.0
         )
-        self.__update_assignments = ScheduleInterval[course_id](
+        self.__update_assignments = IntervalScheduler[course_id](
             duration=datetime.timedelta(seconds=self.__cfg.assignments.update_interval_seconds),
             batch_size=self.__cfg.assignments.update_course_batch_size,
-            offset='end'
+            offset=1.0
         )
-        self.__update_open_submissions = ScheduleInterval[assignment_id](
+        self.__update_open_submissions = IntervalScheduler[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_open_interval_seconds),
             batch_size=self.__cfg.submissions.update_open_batch_size,
-            offset='end'
+            offset=1.0
         )
-        self.__update_deadline_submissions = ScheduleInterval[assignment_id](
+        self.__update_deadline_submissions = IntervalScheduler[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_deadline_interval_seconds),
             batch_size=self.__cfg.submissions.update_deadline_batch_size,
-            offset='end'
+            offset=1.0
         )
 
     async def scheduler_task(self) -> t.NoReturn:
         while True:
             #now = datetime.datetime.now(datetime.timezone.utc)
             now = datetime.datetime(2025, 5, 26, 12, 0, 0, tzinfo=datetime.timezone.utc)
+            self.__log.warning('COURSES')
             await self._check_courses(now)
+            self.__log.warning('ASSIGNS')
             await self._check_assignments(now)
+            self.__log.warning('SUBS')
             await self._check_submissions_deadline(now)
             await self._check_submissions_active(now)
             try:
@@ -128,7 +75,7 @@ class Scheduler:
     async def _check_courses(self, now: datetime.datetime) -> None:
         if self.__update_courses.is_empty():
             self.__update_courses.set_queried_objects([None], now)
-        c = self.__update_courses.pop_past_objects(now)
+        c = self.__update_courses.pop_triggered_objects(now)
         if c:
             try:
                 self.__log.debug('Updating courses we are subscribed to...')
@@ -156,7 +103,7 @@ class Scheduler:
                 self.__log.debug('%d open courses found, tracking: %s', len(course_ids),
                                  ', '.join(f'#{cid}' for cid in course_ids))
                 self.__update_assignments.set_queried_objects(course_ids, now)
-        course_ids = self.__update_assignments.pop_past_objects(now)
+        course_ids = self.__update_assignments.pop_triggered_objects(now)
         if course_ids:
             try:
                 self.__log.debug('Updating assignments for courses %s',
@@ -189,7 +136,7 @@ class Scheduler:
                 if assigns:
                     self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns))
                 self.__update_open_submissions.set_queried_objects(assigns, now)
-        assign_ids = self.__update_open_submissions.pop_past_objects(now)
+        assign_ids = self.__update_open_submissions.pop_triggered_objects(now)
         if assign_ids:
             await self._update_submissions_for(assign_ids)
 
@@ -208,7 +155,7 @@ class Scheduler:
                 if assigns:
                     self.__log.debug('Tracking %d open deadline assignments.', len(assigns))
                 self.__update_deadline_submissions.set_queried_objects(assigns, now)
-            assign_ids = self.__update_deadline_submissions.pop_past_objects(now)
+            assign_ids = self.__update_deadline_submissions.pop_triggered_objects(now)
             if assign_ids:
                 await self._update_submissions_for(assign_ids)
 

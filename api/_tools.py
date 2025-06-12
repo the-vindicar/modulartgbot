@@ -1,10 +1,13 @@
 import asyncio
 import contextlib
+import datetime
+import itertools
 import logging
 import typing as t
 
 
-__all__ = ['background_task']
+__all__ = ['background_task', 'IntervalScheduler']
+_T = t.TypeVar('_T')
 
 
 def done_callback(task: asyncio.Task):
@@ -36,3 +39,65 @@ async def background_task(coro: t.Coroutine):
             await task
         except asyncio.CancelledError:
             pass
+
+
+class IntervalScheduler(t.Generic[_T]):
+    """Описывает один цикл опроса, в течении которого происходит опрос всех указанных объектов."""
+    def __init__(self,
+                 duration: datetime.timedelta,
+                 batch_size: int = 1,
+                 alignment: float = 1.0):
+        """
+        :param duration: Длительность одного цикла опроса. Этот цикл делится на интервалы по числу групп.
+        :param batch_size: Максимальный размер группы, опрашиваемой за один раз.
+        :param alignment: Смещение момента опроса группы внутри интервала.
+        0.0 означает, что группа будет опрошена в начале своего интервала, 0.5 - в середине, 1.0 - в конце.
+        Если смещение не 1.0, то в конце цикла опроса всех групп будет добавлена ещё одна пустая группа.
+        """
+        self.duration: datetime.timedelta = duration
+        self.batch_size: int = batch_size
+        self.alignment = min(1.0, max(0.0, alignment))
+        self.events: list[tuple[datetime.datetime, tuple[_T, ...]]] = []
+
+    def is_empty(self) -> bool:
+        """Возвращает истину, если не осталось опрашиваемых объектов, и список пора обновить."""
+        return not bool(self.events)
+
+    def set_queried_objects(self, objects: t.Collection[_T], start: datetime.datetime) -> None:
+        """Задаёт список объектов, которые должны быть опрошены в течение одного интервала.
+        Интервал начинается с указанного момента, объекты распределяются по нему равномерно,
+        группами не более заданного размера.
+
+        :param objects: Коллекция опрашиваемых объектов.
+        :param start: С какого момента начать отсчёт интервала."""
+        self.events.clear()
+        if not objects:
+            return
+
+        if self.batch_size > 0:
+            batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
+            batch_interval = self.duration / batch_count
+            ts = start.astimezone(datetime.timezone.utc) + batch_interval * self.alignment
+            for chunk in itertools.batched(objects, self.batch_size):
+                self.events.append((ts, chunk))
+                ts = ts + batch_interval
+            if self.alignment < 1.0:
+                self.events.append((ts, ()))
+        else:
+            ts = start.astimezone(datetime.timezone.utc) + self.duration
+            self.events.append((ts, tuple(objects)))
+
+    def pop_triggered_objects(self, now: datetime.datetime) -> list[_T]:
+        now = now.astimezone(datetime.timezone.utc)
+        past = []
+        for i in range(len(self.events) - 1, -1, -1):
+            ts, objects = self.events[i]
+            if ts <= now:
+                del self.events[i]
+                past.extend(objects)
+        return past
+
+    def get_next_trigger_time(self) -> t.Optional[datetime.datetime]:
+        if not self.events:
+            return None
+        return self.events[0][0]
