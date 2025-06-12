@@ -5,13 +5,15 @@ __all__ = ['MoodleFunctions']
 if tp.TYPE_CHECKING:
     from modules.moodle.moodle import Moodle
 
-from .common import *
-from .courses import *
-from .users import *
-from .assignments import *
+from .common import ModelType
+from .siteinfo import SiteInfoMixin
+from .courses import CoursesMixin
+from .users import UsersMixin
+from .assignments import AssignMixin
+from .grades import GradesMixin
 
 
-class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin):
+class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin):
     """Этот класс служит для вызова функций Moodle Web API."""
     __slots__ = ('__owner', )
 

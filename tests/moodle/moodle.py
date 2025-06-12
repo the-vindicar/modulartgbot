@@ -6,8 +6,15 @@ async def main():
     m = MoodleAdapter('https://sdo.kosgos.ru', input('Username: '), input('Password: '))
     async with m:
         await m.login()
-        async for c in m.stream_enrolled_courses(True, [role_id(3)]):
-            print(f'[{c.id}] {c.fullname} ({len(c.teachers)} teachers, {len(c.students)} students)')
+        sinfo = await m.function.core_webservice_get_site_info()
+        print(f'[{sinfo.userid}] {sinfo.username}: {sinfo.fullname}')
+        print('-'*15, 'Доступные функции', '-'*15)
+        sinfo.functions.sort(key=lambda fn: fn.name)
+        for fn in sinfo.functions:
+            print(f'    {fn.name}')
+        print('-' * 15, 'Дополнительные возможности', '-' * 15)
+        for fea in sinfo.advancedfeatures:
+            print(f'    {fea.name}: {fea.value}')
 
 
 if __name__ == '__main__':
