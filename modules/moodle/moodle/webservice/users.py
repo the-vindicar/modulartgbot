@@ -44,32 +44,32 @@ class RCourseMention(BaseModel):
 
 class REnrolledUser(BaseModel):
     id: PositiveInt
-    username: Optional[str]
-    firstname: Optional[str]
-    lastname: Optional[str]
-    fullname: str
-    email: Optional[str]
-    address: Optional[str]
-    phone1: Optional[str]
-    phone2: Optional[str]
-    department: Optional[str]
-    institution: Optional[str]
-    idnumber: Optional[Any]
-    interests: Optional[str]
-    firstaccess: Optional[Timestamp]
-    lastaccess: Optional[Timestamp]
-    lastcourseaccess: Optional[Timestamp]
-    description: Optional[str]
-    descriptionformat: Optional[FormatEnum]
-    city: Optional[str]
-    country: Optional[str]
-    profileimageurlsmall: Optional[AnyHttpUrl]
-    profileimageurl: Optional[AnyHttpUrl]
-    customfields: Optional[list[RCustomField]]
-    groups: Optional[list[RGroup]]
-    roles: Optional[list[RRole]]
-    preferences: Optional[list[RPreference]]
-    enrolledcourses: Optional[list[RCourseMention]]
+    fullname: Optional[str] = None
+    username: Optional[str] = None
+    firstname: Optional[str] = None
+    lastname: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    phone1: Optional[str] = None
+    phone2: Optional[str] = None
+    department: Optional[str] = None
+    institution: Optional[str] = None
+    idnumber: Optional[Any] = None
+    interests: Optional[str] = None
+    firstaccess: Optional[Timestamp] = None
+    lastaccess: Optional[Timestamp] = None
+    lastcourseaccess: Optional[Timestamp] = None
+    description: Optional[str] = None
+    descriptionformat: Optional[FormatEnum] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    profileimageurlsmall: Optional[AnyHttpUrl] = None
+    profileimageurl: Optional[AnyHttpUrl] = None
+    customfields: Optional[list[RCustomField]] = None
+    groups: Optional[list[RGroup]] = None
+    roles: Optional[list[RRole]] = None
+    preferences: Optional[list[RPreference]] = None
+    enrolledcourses: Optional[list[RCourseMention]] = None
 
 
 class REnrolledUsers(RootModel[list[REnrolledUser]]):
