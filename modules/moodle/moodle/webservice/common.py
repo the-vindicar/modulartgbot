@@ -1,5 +1,5 @@
 from typing import Optional, Any, Annotated, TypeVar, TypedDict, Protocol, Type
-from enum import StrEnum
+from enum import Enum
 from annotated_types import *
 from pydantic import BaseModel, PositiveInt
 
@@ -18,12 +18,12 @@ class WebServiceAdapter(Protocol):
         ...
 
 
-class FormatEnum(StrEnum):
-    FORMAT_MOODLE = '0'
-    FORMAT_HTML = '1'
-    FORMAT_PLAIN = '2'
-    FORMAT_WIKI = '3'
-    FORMAT_MARKDOWN = '4'
+class FormatEnum(Enum):
+    FORMAT_MOODLE = 0
+    FORMAT_HTML = 1
+    FORMAT_PLAIN = 2
+    FORMAT_WIKI = 3
+    FORMAT_MARKDOWN = 4
 
 
 class Option(TypedDict):

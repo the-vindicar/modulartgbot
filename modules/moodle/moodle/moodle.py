@@ -196,6 +196,9 @@ class Moodle:
         elif isinstance(value, (int, float, str)):
             # примитивные типы данные передаются как есть
             return {name: value}
+        elif value is None:
+            # None мы не передаём
+            return {}
         else:
             # мы не знаем, как поступать с остальным
             raise TypeError(f'Unsupported type for parameter {name!r}: {type(value)!r}')

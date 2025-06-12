@@ -31,13 +31,15 @@ class ScheduleInterval(t.Generic[_T]):
     """Описывает один цикл опроса, в течении которого происходит опрос всех указанных объектов."""
     def __init__(self,
                  duration: datetime.timedelta,
-                 batch_size: int = 1):
+                 batch_size: int = 1,
+                 offset: t.Literal['begin', 'end'] = 'end'):
         """
         :param duration: Длительность интервала опроса.
         :param batch_size: Максимальный размер группы, опрашиваемой за один раз.
         """
         self.duration: datetime.timedelta = duration
         self.batch_size: int = batch_size
+        self.offset = offset
         self.events: list[tuple[datetime.datetime, tuple[_T, ...]]] = []
 
     def is_empty(self) -> bool:
@@ -58,10 +60,14 @@ class ScheduleInterval(t.Generic[_T]):
         if self.batch_size > 0:
             batch_count = len(objects) // self.batch_size + (1 if len(objects) % self.batch_size > 0 else 0)
             batch_interval = self.duration / batch_count
-            ts = start.astimezone(datetime.timezone.utc) + batch_interval
+            ts = start.astimezone(datetime.timezone.utc)
+            if self.offset != 'begin':
+                ts += batch_interval
             for chunk in itertools.batched(objects, self.batch_size):
                 self.events.append((ts, chunk))
                 ts = ts + batch_interval
+            if self.offset == 'begin':
+                self.events.append((ts, ()))
         else:
             ts = start.astimezone(datetime.timezone.utc) + self.duration
             self.events.append((ts, tuple(objects)))
@@ -86,19 +92,23 @@ class Scheduler:
         self.__log = log
         self.wakeup = asyncio.Event()
         self.__update_courses = ScheduleInterval[None](
-            duration=datetime.timedelta(seconds=self.__cfg.courses.update_interval_seconds)
+            duration=datetime.timedelta(seconds=self.__cfg.courses.update_interval_seconds),
+            batch_size=1, offset='begin'
         )
         self.__update_assignments = ScheduleInterval[course_id](
             duration=datetime.timedelta(seconds=self.__cfg.assignments.update_interval_seconds),
-            batch_size=self.__cfg.assignments.update_course_batch_size
+            batch_size=self.__cfg.assignments.update_course_batch_size,
+            offset='end'
         )
         self.__update_open_submissions = ScheduleInterval[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_open_interval_seconds),
-            batch_size=self.__cfg.submissions.update_open_batch_size
+            batch_size=self.__cfg.submissions.update_open_batch_size,
+            offset='end'
         )
         self.__update_deadline_submissions = ScheduleInterval[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_deadline_interval_seconds),
-            batch_size=self.__cfg.submissions.update_deadline_batch_size
+            batch_size=self.__cfg.submissions.update_deadline_batch_size,
+            offset='end'
         )
 
     async def scheduler_task(self) -> t.NoReturn:
