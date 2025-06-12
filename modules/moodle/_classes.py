@@ -116,4 +116,5 @@ class Submission(_IDMixin[submission_id]):
     assignment_id: assignment_id
     user_id: user_id
     updated: datetime.datetime
+    status: str
     files: tuple[SubmittedFile, ...]

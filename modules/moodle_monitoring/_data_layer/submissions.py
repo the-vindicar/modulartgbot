@@ -14,6 +14,7 @@ async def create_tables_submissions(conn: asyncpg.Connection) -> None:
         assignment_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         updated INTEGER NOT NULL,
+        status TEXT NOT NULL,
         FOREIGN KEY (user_id) REFERENCES MoodleUsers (id) ON DELETE CASCADE,
         FOREIGN KEY (assignment_id) REFERENCES MoodleAssignments (id) ON DELETE CASCADE
     )''')
@@ -46,9 +47,9 @@ async def store_submissions(conn: asyncpg.Connection,
         for s in submissions
     ]
     await conn.executemany('''INSERT INTO MoodleSubmissions
-    (id, assignment_id, user_id, updated) VALUES ($1, $2, $3, $4)
+    (id, assignment_id, user_id, updated, status) VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (id) DO UPDATE SET
-        updated = EXCLUDED.updated
+        updated = EXCLUDED.updated, status = EXCLUDED.status
     ''', raw_subs)
     del raw_subs
     raw_files = [
@@ -74,7 +75,7 @@ async def load_submissions(conn: asyncpg.Connection, assign_id: assignment_id,
     :param before: Момент времени, до которого должны быть отправлены ответы (включительно).
     :return: Список экземпляров класса :class:`Submission`.
     """
-    query = '''SELECT id, assignment_id, user_id, updated FROM MoodleSubmissions
+    query = '''SELECT id, assignment_id, user_id, updated, status FROM MoodleSubmissions
     WHERE (assignment_id = $1)'''
     args = [assign_id]
     if after is not None:
@@ -86,8 +87,8 @@ async def load_submissions(conn: asyncpg.Connection, assign_id: assignment_id,
 
     cursor = conn.cursor(query, assign_id, *args)
     raw_subs = {}
-    async for sub_id, assign_id, user_id, updated in cursor:
-        raw_subs[sub_id] = (assign_id, user_id, updated, [])
+    async for sub_id, assign_id, user_id, updated, status in cursor:
+        raw_subs[sub_id] = (assign_id, user_id, updated, status, [])
 
     query = '''SELECT submission_id, filename, filesize, mimetype, url, uploaded
     FROM MoodleFiles WHERE assignment_id = $1 AND submission_id = ANY($2::int[])'''
@@ -95,10 +96,11 @@ async def load_submissions(conn: asyncpg.Connection, assign_id: assignment_id,
     async for (sub_id, filename, filesize, mimetype, url, uploaded) in cursor:
         sf = SubmittedFile(submission_id=sub_id, url=url, uploaded=uploaded,
                            filename=filename, filesize=filesize, mimetype=mimetype)
-        raw_subs[sub_id][3].append(sf)
+        raw_subs[sub_id][-1].append(sf)
     result = [
-        Submission(id=sub_id, assignment_id=assign_id, user_id=user_id, updated=updated, files=tuple(files))
-        for sub_id, (assign_id, user_id, updated, files) in raw_subs.items()
+        Submission(id=sub_id, assignment_id=assign_id, user_id=user_id,
+                   updated=updated, status=status, files=tuple(files))
+        for sub_id, (assign_id, user_id, updated, status, files) in raw_subs.items()
     ]
     return result
 

@@ -141,6 +141,7 @@ class MoodleAdapter(Moodle):
                     assignment_id=assign_id,
                     user_id=uid,
                     updated=self.timestamp2datetime(raw_sub.timemodified),
+                    status=raw_sub.status,
                     files=tuple(files)
                 )
                 yield s
