@@ -1,6 +1,7 @@
 import typing as tp
+import warnings
 
-__all__ = ['MoodleFunctions']
+from pydantic import JsonValue
 
 if tp.TYPE_CHECKING:
     from modules.moodle.moodle import Moodle
@@ -11,6 +12,9 @@ from .courses import CoursesMixin
 from .users import UsersMixin
 from .assignments import AssignMixin
 from .grades import GradesMixin
+
+
+__all__ = ['MoodleFunctions']
 
 
 class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin):
@@ -29,12 +33,12 @@ class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, Grad
     @tp.overload
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],
                        *, model: None = None
-                       ) -> tp.Union[tp.List, tp.Dict[str, tp.Any]]:
+                       ) -> JsonValue:
         ...
 
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],
                        *, model: tp.Type[ModelType] = None
-                       ) -> tp.Union[ModelType, tp.List, tp.Dict[str, tp.Any]]:
+                       ) -> tp.Union[ModelType, JsonValue]:
         """Вызываем указанную функцию Moodle Web API.
         :param func: Имя функции, например, 'core_webservice_get_site_info'.
         :param params: Аргументы, передаваемые функции.

@@ -1,5 +1,6 @@
 from typing import Optional, Collection
 from enum import StrEnum
+from datetime import datetime
 from pydantic import BaseModel, PositiveInt
 from .common import *
 
@@ -7,6 +8,9 @@ from .common import *
 __all__ = [
     'AssignMixin',
     'RAssignment', 'RAssignmentsPerCourse', 'RAssignments',
+    'RAssignmentGradeset', 'RAssignmentsGrades', 'RAssignmentGrade',
+    'RSubmissions', 'RSubmission', 'RAssignmentMention',
+    'RSubmissionPlugin', 'RSubmissionEditorField', 'RSubmissionFileArea'
 ]
 
 
@@ -123,6 +127,26 @@ class RSubmissions(BaseModel):
     warnings: list[RWarning]
 
 
+class RAssignmentGrade(BaseModel):
+    id: PositiveInt
+    userid: PositiveInt
+    attemptnumber: int
+    timecreated: Timestamp
+    timemodified: Timestamp
+    grader: PositiveInt
+    grade: str
+
+
+class RAssignmentGradeset(BaseModel):
+    assignmentid: PositiveInt
+    grades: list[RAssignmentGrade]
+
+
+class RAssignmentsGrades(BaseModel):
+    assignments: list[RAssignmentGradeset]
+    warnings: list[RWarning]
+
+
 class AssignMixin:
     async def mod_assign_get_assignments(
             self: WebServiceAdapter,
@@ -141,10 +165,21 @@ class AssignMixin:
             self: WebServiceAdapter,
             assignmentids: Collection[int],
             status: str = '',
-            since: int = 0, before: int = 0
+            since: datetime | int = 0, before: datetime | int = 0
     ) -> RSubmissions:
         return await self(
             'mod_assign_get_submissions', dict(
                 assignmentids=assignmentids, status=status, since=since, before=before
             ), model=RSubmissions
+        )
+
+    async def mod_assign_get_grades(
+            self: WebServiceAdapter,
+            assignmentids: Collection[int],
+            since: datetime | int = 0
+    ) -> RAssignmentsGrades:
+        return await self(
+            'mod_assign_get_grades', dict(
+                assignmentids=assignmentids, since=since
+            ), model=RAssignmentsGrades
         )

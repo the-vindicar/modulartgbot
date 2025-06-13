@@ -51,7 +51,7 @@ class CoursesMixin:
             customfieldname: str = None,
             customfieldvalue: str = None,
             searchvalue: str = None,
-            requiredfields: Collection[str] = tuple()
+            requiredfields: Collection[str] = None
     ) -> RPaginatedCourses:
         return await self(
             'core_course_get_enrolled_courses_by_timeline_classification', dict(

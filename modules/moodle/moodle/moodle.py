@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 import aiohttp
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError, JsonValue
 
 from .errors import MoodleError, InvalidToken
 from .webservice import MoodleFunctions, ModelType
@@ -71,12 +71,12 @@ class Moodle:
     @overload
     async def query(self,
                     urlpath: str, params: dict[str, Any] = None,
-                    *, model: None = None) -> Union[list, dict[str, Any]]:
+                    *, model: None = None) -> JsonValue:
         ...
 
     async def query(self,
                     urlpath: str, params: dict[str, Any] = None,
-                    *, model: Type[ModelType] = None) -> Union[ModelType, list, dict[str, Any]]:
+                    *, model: Type[ModelType] = None) -> Union[ModelType, JsonValue]:
         """Выполняет GET запрос к указанному пути на сервере, передавая указанные параметры, и принимает JSON ответ.
         :param urlpath: Путь, запрашиваемый на сервере. Задаётся относительно базового URL сервера.
         :param params: Передаваемые параметры.
@@ -107,11 +107,20 @@ class Moodle:
                                 continue
                             else:
                                 raise
-                    if model is not None:
-                        ta = TypeAdapter(model)
-                        return ta.validate_python(response)
                     else:
-                        return response
+                        break
+        if model is not None:
+            try:
+                ta = TypeAdapter(model)
+                result = ta.validate_python(response)
+            except ValidationError:
+                self._log.warning('Validation error!')
+                self._log.warning(repr(response))
+                raise
+            else:
+                return result
+        else:
+            return response
 
     async def login(self) -> None:
         """Использует переданные в конструкторе логин и пароль, чтобы получить токен.
@@ -137,11 +146,12 @@ class Moodle:
 
     async def _update_timezone(self) -> None:
         """Пытается запросить информацию о часовом поясе, настроенном для той учётной записи, которую мы используем."""
-        res = await self.function('core_user_get_users_by_field', dict(field='username', values=[self.__username]))
-        if res and 'timezone' in res[0]:
-            tz = res[0]['timezone']
-            if tz != '99':  # 99 означает, что мы используем часовой пояс сервера
-                self.timezone = datetime.timezone(datetime.timedelta(hours=float(tz)))
+        res = await self.function.core_user_get_users_by_field(field='username', values=[self.__username])
+        if not res:
+            return
+        tz = res[0].timezone
+        if tz not in ('99', None):  # 99 означает, что мы используем часовой пояс сервера
+            self.timezone = datetime.timezone(datetime.timedelta(hours=float(tz)))
 
     async def get_download_fileobj(self, fileurl: str) -> asyncio.StreamReader:
         """Имея ссылку на файл, формирует поток для его скачивания.

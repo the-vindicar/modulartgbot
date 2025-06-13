@@ -16,14 +16,14 @@ class RGradeItem(BaseModel):
     content: str
     id: str
 
-    config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RGradeLeader(BaseModel):
     classname: str = Field(alias='class')
     rowspan: int
 
-    config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RGradeColumn(BaseModel):
@@ -31,7 +31,7 @@ class RGradeColumn(BaseModel):
     content: str
     headers: str
 
-    config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RUserGrade(BaseModel):
@@ -64,15 +64,15 @@ class RGradesTables(BaseModel):
 
 class RGradeItemsItem(BaseModel):
     id: PositiveInt
-    itemname: str
+    itemname: Optional[str]
     itemtype: str
-    itemmodule: str
+    itemmodule: Optional[str]
     iteminstance: PositiveInt
-    itemnumber: int
+    itemnumber: Optional[int]
     idnumber: Any
-    categoryid: PositiveInt
-    outcomeid: int
-    scaleid: int
+    categoryid: Optional[PositiveInt]
+    outcomeid: Optional[int] = None
+    scaleid: Optional[int] = None
     locked: Optional[bool] = None
     cmid: Optional[int] = None
     weightraw: Optional[float] = None

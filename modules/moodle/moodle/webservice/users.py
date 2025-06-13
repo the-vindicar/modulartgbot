@@ -1,5 +1,8 @@
 from typing import Optional, Any, Collection
-from pydantic import BaseModel, PositiveInt, AnyHttpUrl, RootModel
+from enum import StrEnum
+
+from pydantic import BaseModel, PositiveInt, AnyHttpUrl
+
 from .common import *
 
 
@@ -7,6 +10,7 @@ __all__ = [
     'UsersMixin',
     'RCourseMention', 'REnrolledUser',
     'RGroup', 'RRole', 'RPreference', 'RCustomField',
+    'UserByField', 'RUserDescription'
 ]
 
 
@@ -42,7 +46,7 @@ class RCourseMention(BaseModel):
     shortname: str
 
 
-class REnrolledUser(BaseModel):
+class _RBaseUser(BaseModel):
     id: PositiveInt
     fullname: Optional[str] = None
     username: Optional[str] = None
@@ -58,18 +62,33 @@ class REnrolledUser(BaseModel):
     interests: Optional[str] = None
     firstaccess: Optional[Timestamp] = None
     lastaccess: Optional[Timestamp] = None
-    lastcourseaccess: Optional[Timestamp] = None
-    description: Optional[str] = None
-    descriptionformat: Optional[FormatEnum] = None
     city: Optional[str] = None
     country: Optional[str] = None
+    customfields: Optional[list[RCustomField]] = None
+    description: Optional[str] = None
+    descriptionformat: Optional[FormatEnum] = None
+    preferences: Optional[list[RPreference]] = None
     profileimageurlsmall: Optional[AnyHttpUrl] = None
     profileimageurl: Optional[AnyHttpUrl] = None
-    customfields: Optional[list[RCustomField]] = None
+
+
+class REnrolledUser(_RBaseUser):
+    lastcourseaccess: Optional[Timestamp] = None
     groups: Optional[list[RGroup]] = None
     roles: Optional[list[RRole]] = None
-    preferences: Optional[list[RPreference]] = None
     enrolledcourses: Optional[list[RCourseMention]] = None
+
+
+class RUserDescription(_RBaseUser):
+    theme: Optional[str] = None
+    timezone: Optional[str] = None
+
+
+class UserByField(StrEnum):
+    ID = 'id'
+    ID_NUMBER = 'idnumber'
+    USERNAME = 'username'
+    EMAIL = 'email'
 
 
 class UsersMixin:
@@ -82,3 +101,13 @@ class UsersMixin:
             'core_enrol_get_enrolled_users', dict(
                 courseid=courseid, options=options
             ), model=list[REnrolledUser])
+
+    async def core_user_get_users_by_field(
+            self: WebServiceAdapter,
+            field: UserByField | str,
+            values: Collection[int | str]
+    ) -> list[RUserDescription]:
+        return await self(
+            'core_user_get_users_by_field', dict(
+                field=field, values=values
+            ), model=list[RUserDescription])
