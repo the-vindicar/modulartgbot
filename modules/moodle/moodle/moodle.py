@@ -203,6 +203,9 @@ class Moodle:
         elif isinstance(value, datetime.datetime):
             # дата и время преобразуется в часовой пояс сервера, а потом в int
             return {name: self.datetime2timestamp(value)}
+        elif isinstance(value, bool):
+            # логические значения передаются как 0 и 1
+            return {name: int(value)}
         elif isinstance(value, (int, float, str)):
             # примитивные типы данные передаются как есть
             return {name: value}

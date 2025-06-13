@@ -1,5 +1,5 @@
 from typing import Optional, Any
-from pydantic import BaseModel, PositiveInt, AnyHttpUrl
+from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
 from .common import *
 
 
@@ -26,13 +26,13 @@ class RSiteInfo(BaseModel):
     userid: PositiveInt
     siteurl: AnyHttpUrl
     userpictureurl: str
-    functions: Optional[list[RAvailableFunction]] = None
+    functions: list[RAvailableFunction] = Field(default_factory=list)
     downloadfiles: Optional[bool] = None
     uploadfiles: Optional[bool] = None
     release: Optional[str] = None
     version: Optional[str] = None
     mobilecssurl: Optional[str] = None
-    advancedfeatures: Optional[list[RAdvancedFeature]] = None
+    advancedfeatures: list[RAdvancedFeature] = Field(default_factory=list)
     usercanmanageownfiles: Optional[bool] = None
     userquota: Optional[int] = None
     usermaxuploadfilesize: Optional[int] = None

@@ -1,7 +1,7 @@
 from typing import Optional, Any, Collection
 from enum import StrEnum
 
-from pydantic import BaseModel, PositiveInt, AnyHttpUrl
+from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
 
 from .common import *
 
@@ -64,19 +64,19 @@ class _RBaseUser(BaseModel):
     lastaccess: Optional[Timestamp] = None
     city: Optional[str] = None
     country: Optional[str] = None
-    customfields: Optional[list[RCustomField]] = None
+    customfields: list[RCustomField] = Field(default_factory=list)
     description: Optional[str] = None
     descriptionformat: Optional[FormatEnum] = None
-    preferences: Optional[list[RPreference]] = None
+    preferences: list[RPreference] = Field(default_factory=list)
     profileimageurlsmall: Optional[AnyHttpUrl] = None
     profileimageurl: Optional[AnyHttpUrl] = None
 
 
 class REnrolledUser(_RBaseUser):
     lastcourseaccess: Optional[Timestamp] = None
-    groups: Optional[list[RGroup]] = None
-    roles: Optional[list[RRole]] = None
-    enrolledcourses: Optional[list[RCourseMention]] = None
+    groups: list[RGroup] = Field(default_factory=list)
+    roles: list[RRole] = Field(default_factory=list)
+    enrolledcourses: list[RCourseMention] = Field(default_factory=list)
 
 
 class RUserDescription(_RBaseUser):

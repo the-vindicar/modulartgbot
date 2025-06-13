@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pprint import pprint
 from modules.moodle import *
 
 
@@ -9,7 +10,17 @@ async def main():
     async with m:
         await m.login()
         # await test_site_info(m)
-        await test_grades(m)
+        # await test_grades(m)
+        await test_comments(m)
+
+
+async def test_comments(m: MoodleAdapter):
+    asses = await m.function.mod_assign_get_assignments(courseids=[7043])
+    for item in asses.courses[0].assignments:
+        print(f'[ID={item.id} CMID={item.cmid}] {item.name}')
+    # assignid 42400 userid 34295
+    res = await m.function.mod_assign_get_submission_status(assignid=42400, userid=34295)
+    pprint(res.model_dump())
 
 
 async def test_grades(m: MoodleAdapter):
@@ -18,7 +29,8 @@ async def test_grades(m: MoodleAdapter):
         print('-'*5, f'Оценки для [{grade.userid}] {grade.userfullname}', '-'*5)
         grade.gradeitems.sort(key=lambda item: (item.itemtype or '', item.itemmodule or '', item.itemname or ''))
         for item in grade.gradeitems:
-            print(f'[{item.itemtype}/{item.itemmodule}] {item.itemname}: {item.graderaw} / {item.grademax}')
+            print(f'[{item.itemtype}/{item.itemmodule}] {item.itemname}: {item.graderaw} / {item.grademax}'
+                  f'|{item.iteminstance=}; {item.id=}; {item.cmid=}; {item.status=}')
 
 
 async def test_site_info(m: MoodleAdapter):

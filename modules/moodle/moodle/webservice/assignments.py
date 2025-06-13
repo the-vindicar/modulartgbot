@@ -1,7 +1,7 @@
-from typing import Optional, Collection
+from typing import Optional, Collection, Literal
 from enum import StrEnum
 from datetime import datetime
-from pydantic import BaseModel, PositiveInt
+from pydantic import BaseModel, PositiveInt, Field
 from .common import *
 
 
@@ -10,7 +10,9 @@ __all__ = [
     'RAssignment', 'RAssignmentsPerCourse', 'RAssignments',
     'RAssignmentGradeset', 'RAssignmentsGrades', 'RAssignmentGrade',
     'RSubmissions', 'RSubmission', 'RAssignmentMention',
-    'RSubmissionPlugin', 'RSubmissionEditorField', 'RSubmissionFileArea'
+    'RSubmissionPlugin', 'RSubmissionEditorField', 'RSubmissionFileArea',
+    'UngroupedWarning', 'RSubmissionStatus', 'RSubmissionStatusGradingSummary', 'RSubmissionStatusFeedback',
+    'RSubmissionStatusLastAttempt', 'RSubmissionStatusAssignData', 'RSubmissionStatusAssignDataAttachments',
 ]
 
 
@@ -38,8 +40,6 @@ class RAssignment(BaseModel):
     sendstudentnotifications: bool
     duedate: Timestamp
     allowsubmissionsfromdate: Timestamp
-    grade: int
-    gradepenalty: int
     timemodified: Timestamp
     completionsubmit: int
     cutoffdate: Timestamp
@@ -52,22 +52,24 @@ class RAssignment(BaseModel):
     revealidentities: bool
     attemptreopenmethod: str
     maxattempts: int
-    markingworkflow: bool
-    markingallocation: bool
-    markinganonymous: bool
-    requiresubmissionstatement: bool
-    preventsubmissionnotingroup: Optional[bool]
-    submissionstatement: Optional[str]
-    submissionstatementformat: Optional[FormatEnum]
-    intro: Optional[str]
-    introformat: Optional[FormatEnum]
-    introfiles: Optional[list[File]]
-    introattachments: Optional[list[File]]
-    activity: Optional[str]
-    activityformat: Optional[FormatEnum]
-    activityattachments: Optional[list[File]]
-    timelimit: Optional[int]
-    submissionattachments: Optional[bool]
+    grade: Optional[int] = None
+    gradepenalty: Optional[int] = None
+    markingworkflow: Optional[bool] = None
+    markingallocation: Optional[bool] = None
+    markinganonymous: Optional[bool] = None
+    requiresubmissionstatement: Optional[bool] = None
+    preventsubmissionnotingroup: Optional[bool] = None
+    submissionstatement: Optional[str] = None
+    submissionstatementformat: Optional[FormatEnum] = None
+    intro: Optional[str] = None
+    introformat: Optional[FormatEnum] = None
+    introfiles: list[File] = Field(default_factory=list)
+    introattachments: list[File] = Field(default_factory=list)
+    activity: Optional[str] = None
+    activityformat: Optional[FormatEnum] = None
+    activityattachments: list[File] = Field(default_factory=list)
+    timelimit: Optional[int] = None
+    submissionattachments: Optional[bool] = None
 
 
 class RAssignmentsPerCourse(BaseModel):
@@ -85,7 +87,7 @@ class RAssignments(BaseModel):
 
 class RSubmissionFileArea(BaseModel):
     area: str
-    files: Optional[list[File]]
+    files: list[File] = Field(default_factory=list)
 
 
 class RSubmissionEditorField(BaseModel):
@@ -98,8 +100,8 @@ class RSubmissionEditorField(BaseModel):
 class RSubmissionPlugin(BaseModel):
     type: str
     name: str
-    fileareas: Optional[list[RSubmissionFileArea]]
-    editorfields: Optional[list[RSubmissionEditorField]]
+    fileareas: list[RSubmissionFileArea] = Field(default_factory=list)
+    editorfields: list[RSubmissionEditorField] = Field(default_factory=list)
 
 
 class RSubmission(BaseModel):
@@ -113,8 +115,8 @@ class RSubmission(BaseModel):
     groupid: int
     assignment: Optional[PositiveInt]
     latest: Optional[int]
-    plugins: Optional[list[RSubmissionPlugin]]
-    gradingstatus: Optional[GradingStatus]
+    plugins: list[RSubmissionPlugin] = Field(default_factory=list)
+    gradingstatus: Optional[GradingStatus] = None
 
 
 class RAssignmentMention(BaseModel):
@@ -135,6 +137,7 @@ class RAssignmentGrade(BaseModel):
     timemodified: Timestamp
     grader: PositiveInt
     grade: str
+    gradefordisplay: Optional[str] = None
 
 
 class RAssignmentGradeset(BaseModel):
@@ -145,6 +148,66 @@ class RAssignmentGradeset(BaseModel):
 class RAssignmentsGrades(BaseModel):
     assignments: list[RAssignmentGradeset]
     warnings: list[RWarning]
+
+
+class UngroupedWarning(StrEnum):
+    REQUIRED = 'warningrequired'
+    OPTIONAL = 'warningoptional'
+    NONE = ''
+
+
+class RSubmissionStatusGradingSummary(BaseModel):
+    participantcount: int
+    submissiondraftscount: int
+    submissionsenabled: bool
+    submissionssubmittedcount: int
+    submissionsneedgradingcount: int
+    warnofungroupedusers: UngroupedWarning
+
+
+class RSubmissionStatusLastAttempt(BaseModel):
+    submissionsenabled: bool
+    locked: bool
+    graded: bool
+    canedit: bool
+    caneditowner: bool
+    cansubmit: bool
+    extensionduedate: Timestamp
+    blindmarking: bool
+    gradingstatus: GradingStatus
+    usergroups: list[PositiveInt]
+    timelimit: Optional[Timestamp] = None
+    submissiongroup: Optional[int] = None
+    submission: Optional[RSubmission] = None
+    teamsubmission: Optional[RSubmission] = None
+    submissiongroupmemberswhoneedtosubmit: list[PositiveInt] = Field(default_factory=list)
+
+
+class RSubmissionStatusFeedback(BaseModel):
+    grade: Optional[RAssignmentGrade]
+    gradefordisplay: str
+    gradeddate: Timestamp
+    plugins: list[RSubmissionPlugin]
+
+
+class RSubmissionStatusAssignDataAttachments(BaseModel):
+    intro: list[File] = Field(default_factory=list)
+    activity: list[File] = Field(default_factory=list)
+
+
+class RSubmissionStatusAssignData(BaseModel):
+    attachments: Optional[RSubmissionStatusAssignDataAttachments] = None
+    activity: Optional[str] = None
+    activityformat: Optional[FormatEnum] = None
+
+
+class RSubmissionStatus(BaseModel):
+    gradingsummary: RSubmissionStatusGradingSummary
+    assignmentdata: RSubmissionStatusAssignData
+    lastattempt: Optional[RSubmissionStatusLastAttempt] = None
+    feedback: Optional[RSubmissionStatusFeedback] = None
+    previousattempts: list = Field(default_factory=list)
+    warnings: list[RWarning] = Field(default_factory=list)
 
 
 class AssignMixin:
@@ -182,4 +245,16 @@ class AssignMixin:
             'mod_assign_get_grades', dict(
                 assignmentids=assignmentids, since=since
             ), model=RAssignmentsGrades
+        )
+
+    async def mod_assign_get_submission_status(
+            self: WebServiceAdapter,
+            assignid: int,
+            userid: int = 0,
+            groupid: int | Literal[''] = 0
+    ) -> RSubmissionStatus:
+        return await self(
+            'mod_assign_get_submission_status', dict(
+                assignid=assignid, userid=userid, groupid=groupid
+            ), model=RSubmissionStatus
         )

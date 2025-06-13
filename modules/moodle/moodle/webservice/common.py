@@ -1,7 +1,7 @@
 from typing import Optional, Any, Annotated, TypeVar, TypedDict, Protocol, Type
 from enum import Enum
 from annotated_types import *
-from pydantic import BaseModel, PositiveInt
+from pydantic import BaseModel, PositiveInt, AnyHttpUrl
 
 
 __all__ = [
@@ -32,15 +32,15 @@ class Option(TypedDict):
 
 
 class File(BaseModel):
-    filename: Optional[str]
-    filepath: Optional[str]
-    filesize: Optional[int]
-    fileurl: Optional[str]
-    timemodified: Optional[Timestamp]
-    mimetype: Optional[str]
-    isexternalfile: Optional[bool]
-    repositorytype: Optional[Any]
-    icon: Optional[str]
+    filename: str
+    filepath: str
+    filesize: int
+    fileurl: AnyHttpUrl
+    timemodified: Timestamp
+    mimetype: str
+    isexternalfile: Optional[bool] = None
+    repositorytype: Optional[Any] = None
+    icon: Optional[str] = None
 
 
 class RWarning(BaseModel):
