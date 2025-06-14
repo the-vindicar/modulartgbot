@@ -1,15 +1,20 @@
 import typing as t
 
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import AsyncAttrs
 from quart import Blueprint
 
 
 __all__ = [
     'CoreAPI', 'PluginAPI', 'APIProvider',
-    # 'DBRow', 'AsyncDBCursor', 'AsyncDBConnection', 'AsyncDBAcquire',
-    'ConfigManager'
+    'ConfigManager', 'DBModel'
 ]
 _T = t.TypeVar('_T', infer_variance=True)
 _Provider = t.Coroutine[t.Any, t.Any, _T]
+
+
+class DBModel(AsyncAttrs, DeclarativeBase):
+    pass
 
 
 class ConfigManager(t.Protocol[_T]):

@@ -3,6 +3,7 @@ annotated-types
 pydantic==2.*
 python-dotenv
 asyncpg
+sqlalchemy[asyncio]
 aiohttp
 quart
 aiogram

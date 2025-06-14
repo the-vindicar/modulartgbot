@@ -2,12 +2,12 @@ import typing as t
 import os
 import logging
 
-import asyncpg
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine, AsyncSession
 
 from api import CoreAPI
 
 requires = []
-provides = [asyncpg.Pool]
+provides = [AsyncEngine, AsyncSession, ]
 
 
 async def lifetime(api: CoreAPI) -> t.AsyncGenerator:
@@ -15,15 +15,20 @@ async def lifetime(api: CoreAPI) -> t.AsyncGenerator:
     user = os.environ['POSTGRES_USER']
     pwd = os.environ['POSTGRES_PWD']
     dbname = os.environ['POSTGRES_DB']
-    dsn = f'postgresql://{user}:{pwd}@{host}/{dbname}'
+    dsn = f'postgresql+asyncpg://{user}:{pwd}@{host}/{dbname}'
     log = logging.getLogger('modules.db')
     log.info('Connecting to database...')
-    async with asyncpg.create_pool(dsn) as pool:
-        log.info('Connected successfuly to %s@%s', dbname, host)
+    engine = create_async_engine(dsn)
+    session_maker = async_sessionmaker(bind=engine, )
+    log.info('Connected successfuly to %s@%s', dbname, host)
 
-        async def pool_provider() -> asyncpg.Pool:
-            return pool
+    async def engine_provider() -> AsyncEngine:
+        return engine
 
-        api.register_api_provider(pool_provider, asyncpg.Pool)
-        yield
+    async def session_provider() -> AsyncSession:
+        return session_maker()
+
+    api.register_api_provider(engine_provider, AsyncEngine)
+    api.register_api_provider(session_provider, AsyncSession)
+    yield
     log.info('Disconnected from database.')
