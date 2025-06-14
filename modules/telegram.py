@@ -4,17 +4,20 @@
 import dataclasses
 import logging
 import json
-from typing import Dict, Any, Optional
+from typing import cast, Optional, Dict, Any
 
-import asyncpg
+from sqlalchemy import MetaData, Table, Column, Text, TableClause, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
+
 import aiogram
-from aiogram.fsm.storage.base import BaseStorage, StorageKey, StateType, DefaultKeyBuilder
+from aiogram.fsm.storage.base import BaseStorage, StorageKey, StateType, KeyBuilder, DefaultKeyBuilder
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from api import CoreAPI, background_task
 
 
-requires = [asyncpg.Pool]
+requires = [AsyncEngine]
 provides = [aiogram.Dispatcher, aiogram.Bot, BaseStorage]
 
 
@@ -25,79 +28,73 @@ class TGBotConfig:
 
 
 class PostgreStorage(BaseStorage):
-    def __init__(self, conn: asyncpg.Connection):
-        self.conn = conn
-        self.builder = DefaultKeyBuilder()
+    def __init__(self, conn: AsyncConnection, table: str | Table = 'AiogramFSMStorage', builder: KeyBuilder = None):
+        self.__conn = conn
+        metadata = MetaData()
+        if isinstance(table, Table):
+            self.__table = table
+        else:
+            self.__table = Table(
+                table,
+                metadata,
+                Column('key', Text, primary_key=True),
+                Column('state', Text, nullable=True),
+                Column('data', Text, nullable=True),
+            )
+            self.__table.create(bind=self.__conn.sync_connection, checkfirst=True)
+        self.__builder = builder or DefaultKeyBuilder()
 
-    async def create_tables(self) -> None:
-        async with self.conn.transaction():
-            await self.conn.execute('''CREATE TABLE IF NOT EXISTS AiogramStateStorage (
-                key TEXT PRIMARY KEY,
-                state TEXT NULL,
-                data TEXT NULL
-            )''')
+    @property
+    def table(self) -> Table:
+        return self.__table
 
     async def set_state(self, key: StorageKey, state: StateType = None) -> None:
-        statekey = self.builder.build(key)
-        if isinstance(state, str) or state is None:
-            statevalue = state
-        else:
-            statevalue = state.state
-        async with self.conn.transaction():
-            await self.conn.execute(
-                '''INSERT INTO AiogramStateStorage 
-                (key, state) VALUES ($1, $2)
-                ON CONFLICT (key) DO UPDATE SET state = EXCLUDED.state''',
-                statekey, statevalue
-            )
+        statekey = self.__builder.build(key)
+        statename = state if isinstance(state, str) or state is None else state.state
+        stmt = insert(cast(TableClause, self.__table)).values(key=statekey, state=statename)
+        stmt = stmt.on_conflict_do_update(index_elements=['key'], set_=dict(state=stmt.excluded.state))
+        async with self.__conn.begin():
+            await self.__conn.execute(stmt)
 
     async def get_state(self, key: StorageKey) -> Optional[str]:
-        statekey = self.builder.build(key)
-        async with self.conn.transaction(readonly=True):
-            res = await self.conn.cursor(
-                '''SELECT (SELECT state FROM AiogramStateStorage WHERE key = $1) as state''',
-                statekey)
-            (state,) = await res.fetchrow()
-            return state
+        statekey = self.__builder.build(key)
+        stmt = select('state').select_from(self.__table).where(self.__table.c.key == statekey)
+        async with self.__conn.begin():
+            state = await self.__conn.scalar(stmt)  # noqa
+        return state
 
     async def set_data(self, key: StorageKey, data: Dict[str, Any]) -> None:
-        statekey = self.builder.build(key)
-        statedata = json.dumps(data)
-        async with self.conn.transaction():
-            await self.conn.execute(
-                '''INSERT INTO AiogramStateStorage 
-                (key, data) VALUES ($1, $3)
-                ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data''',
-                statekey, statedata
-            )
+        statekey = self.__builder.build(key)
+        statedata = json.dumps(data, ensure_ascii=True, indent=None, separators=(',', ':'))
+        stmt = insert(cast(TableClause, self.__table)).values(key=statekey, data=statedata)
+        stmt = stmt.on_conflict_do_update(index_elements=['key'], set_=dict(data=stmt.excluded.data))
+        async with self.__conn.begin():
+            await self.__conn.execute(stmt)
 
     async def get_data(self, key: StorageKey) -> Dict[str, Any]:
-        statekey = self.builder.build(key)
-        async with self.conn.transaction(readonly=True):
-            res = await self.conn.cursor(
-                '''SELECT (SELECT state FROM AiogramStateStorage WHERE key = $1) as state''',
-                statekey)
-            (data,) = await res.fetchrow()
-        return json.loads(data) if data is not None else {}
+        statekey = self.__builder.build(key)
+        stmt = select('data').select_from(self.__table).where(self.__table.c.key == statekey)
+        async with self.__conn.begin():
+            data = await self.__conn.scalar(stmt)  # noqa
+        return json.loads(data) if data else {}
 
     async def close(self) -> None:
-        self.conn = None
+        await self.__conn.close()
 
 
 async def lifetime(api: CoreAPI):
     log = logging.getLogger('modules.telegram')
     log.info('Preparing telegram bot...')
     bot_cfg = await api.config.load('telegram', TGBotConfig)
-    pool = await api(asyncpg.Pool)
     if bot_cfg.temp_storage:
         storage = MemoryStorage()
         pool_ctx = None
     else:
         log.debug('Database storage selected - trying to set it up.')
-        pool_ctx = pool.acquire()
+        engine = await api(AsyncEngine)
+        pool_ctx = engine.connect()
         conn = await pool_ctx.__aenter__()
         storage = PostgreStorage(conn)
-        await storage.create_tables()
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage)
     bot = aiogram.Bot(token=bot_cfg.bot_token)
@@ -122,6 +119,6 @@ async def lifetime(api: CoreAPI):
             yield
     finally:
         if pool_ctx:
-            await pool_ctx.__aexit__()
+            await pool_ctx.__aexit__(None, None, None)
             log.debug('Database storage released.')
         log.info('Telegram bot stopped.')
