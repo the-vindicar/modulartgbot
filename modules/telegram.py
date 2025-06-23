@@ -12,13 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
 
 import aiogram
 from aiogram.fsm.storage.base import BaseStorage, StorageKey, StateType, KeyBuilder, DefaultKeyBuilder
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 
 from api import CoreAPI, background_task
 
 
 requires = [AsyncEngine]
-provides = [aiogram.Dispatcher, aiogram.Bot, BaseStorage]
+provides = [aiogram.Dispatcher, aiogram.Bot]
 
 
 @dataclasses.dataclass
@@ -28,20 +28,17 @@ class TGBotConfig:
 
 
 class PostgreStorage(BaseStorage):
-    def __init__(self, conn: AsyncConnection, table: str | Table = 'AiogramFSMStorage', builder: KeyBuilder = None):
+    def __init__(self, conn: AsyncConnection, table: str = 'AiogramFSMStorage', builder: KeyBuilder = None):
         self.__conn = conn
         metadata = MetaData()
-        if isinstance(table, Table):
-            self.__table = table
-        else:
-            self.__table = Table(
-                table,
-                metadata,
-                Column('key', Text, primary_key=True),
-                Column('state', Text, nullable=True),
-                Column('data', Text, nullable=True),
-            )
-            self.__table.create(bind=self.__conn.sync_connection, checkfirst=True)
+        self.__table = Table(
+            table,
+            metadata,
+            Column('key', Text, primary_key=True),
+            Column('state', Text, nullable=True),
+            Column('data', Text, nullable=True),
+        )
+        self.__table.create(bind=self.__conn.sync_connection, checkfirst=True)
         self.__builder = builder or DefaultKeyBuilder()
 
     @property
@@ -87,6 +84,7 @@ async def lifetime(api: CoreAPI):
     log.info('Preparing telegram bot...')
     bot_cfg = await api.config.load('telegram', TGBotConfig)
     if bot_cfg.temp_storage:
+        log.warning('Using in-memory storage - user states will be lost on restart.')
         storage = MemoryStorage()
         pool_ctx = None
     else:
@@ -96,7 +94,7 @@ async def lifetime(api: CoreAPI):
         conn = await pool_ctx.__aenter__()
         storage = PostgreStorage(conn)
         log.debug('Database storage ready.')
-    tgdispatcher = aiogram.Dispatcher(storage=storage)
+    tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
     bot = aiogram.Bot(token=bot_cfg.bot_token)
 
     async def bot_provider():
@@ -105,12 +103,8 @@ async def lifetime(api: CoreAPI):
     async def dispatcher_provider():
         return tgdispatcher
 
-    async def storage_provider():
-        return storage
-
     api.register_api_provider(bot_provider, aiogram.Bot)
     api.register_api_provider(dispatcher_provider, aiogram.Dispatcher)
-    api.register_api_provider(storage_provider, BaseStorage)
     log.info('Starting telegram bot...')
     try:
         # ДА ЯПОНСКИЙ ГОРОДОВОЙ! aiogram пожирает сигналы, не позволяя другим частям программы среагировать на них,

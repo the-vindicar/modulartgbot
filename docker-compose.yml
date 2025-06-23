@@ -33,6 +33,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PWD=postgres
       - POSTGRES_DB=multibot
+      - QUART_AUTH_SECRET=Fi098+goku2404-foda421
     tty: true
     init: true
     depends_on:
