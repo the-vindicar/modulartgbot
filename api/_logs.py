@@ -1,3 +1,4 @@
+"""Отвечает за конфигурирование журнала работы системы, и реализацию желаемого поведения при записи ошибок."""
 import typing as t
 import dataclasses
 import logging
@@ -29,16 +30,17 @@ class ReducedTracebackFormatter(logging.Formatter):
     IGNORED = [STDLIB, *SITEPACKAGES, API_PATH]
 
     def formatException(self, ei: tuple[t.Type[Exception], Exception, types.TracebackType]) -> str:
+        """Формирует строку с информацией об исключении."""
         etype, evalue, tb_root = ei
         tb = tb_root
         frames = []
-        while tb is not None:
-            filename = tb.tb_frame.f_code.co_filename
-            if not any(filename.startswith(p) for p in self.IGNORED if p):
-                frames.append(tb)
+        while tb is not None:  # перебираем все фреймы в трейсбэке
+            filename = tb.tb_frame.f_code.co_filename  # к какому файлу относится фрейм?
+            if not any(filename.startswith(p) for p in self.IGNORED if p):  # если файл из НЕ игнорируемых каталогов
+                frames.append(tb)  # мы учтём этот фрейм
             tb = tb.tb_next
         formats = []
-        for tb in frames:
+        for tb in frames:  # форматируем все учтённые фреймы
             formats.extend(traceback.format_tb(tb, 1))
         formatted_tb = ''.join(formats)
         return f'{etype.__name__}: {evalue}\n{formatted_tb}'
@@ -46,6 +48,7 @@ class ReducedTracebackFormatter(logging.Formatter):
 
 @dataclasses.dataclass
 class LoggingCfg:
+    """Конфигурация журнала работы системы."""
     file: str = None
     file_maxsize: int = 1024*1024
     file_backups: int = 3
@@ -56,10 +59,13 @@ class LoggingCfg:
 
 
 async def setup_logging(cfg: ConfigManager, app: quart.Quart):
+    """Подготавливает и настраивает журнал работы системы, удостоверяясь,
+     что все записи идут только через наши обработчики."""
     logcfg = await cfg.load('logging', LoggingCfg)
     applog = logging.getLogger(app.name)
     applog.removeHandler(quart.logging.default_handler)
     logging.root.handlers.clear()
+    # определяем обработчик для непойманных исключений
     sys.excepthook = lambda et, ev, etb: logging.root.critical('Uncaught exception:', exc_info=(et, ev, etb))
     formatter_class = ReducedTracebackFormatter if logcfg.reduced_stacktraces else logging.Formatter
 
