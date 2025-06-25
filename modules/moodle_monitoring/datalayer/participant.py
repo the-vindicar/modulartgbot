@@ -1,3 +1,4 @@
+"""Описывает модели участника курса, ролей участника и групп участника для кэша сущностей Moodle."""
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

@@ -1,3 +1,4 @@
+"""Описывает модели пользователя и роли для кэша сущностей Moodle."""
 from datetime import datetime
 
 from sqlalchemy.orm import Mapped, mapped_column

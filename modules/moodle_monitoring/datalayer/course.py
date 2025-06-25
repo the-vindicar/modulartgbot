@@ -1,3 +1,4 @@
+"""Описывает модели курса Moodle и групп в курсе для кэша сущностей Moodle."""
 import typing as t
 from datetime import datetime
 
@@ -27,7 +28,7 @@ class MoodleCourse(MoodleBase):
 class MoodleGroup(MoodleBase):
     __tablename__ = 'MoodleGroups'
     course_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleCourse.__tablename__+".id"),
+        ForeignKey(MoodleCourse.__tablename__+".id", cascade="all, delete-orphan"),
         primary_key=True, comment='ID курса, в котором описана группа')
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID группы (уникальное в рамках сервера)')
     name: Mapped[str] = mapped_column(nullable=False, comment='Название группы')
