@@ -274,15 +274,19 @@ class MoodleRepository:
             await session.flush()
             await session.commit()
 
-    async def drop_missing_assignments_for(self, courseid: course_id,
-                                           keep_these_ids: t.Collection[assignment_id]) -> None:
-        """Удаляет из базы все задания для указанного курса, за исключением перечисленных.
-        :param courseid: ID курса, из которого удаляются задания.
-        :param keep_these_ids: ID заданий, которые следует оставить нетронутыми."""
+    async def drop_assignments_except_for(self, content: dict[course_id, t.Collection[assignment_id]]) -> None:
+        """Удаляет из базы все задания для указанных курсов, за исключением перечисленных.
+        Курсы, чьи ID отсутствуют среди ключей content, не будут затронуты.
+        :param content: Набор пар "ID курса - список ID заданий", которые следует оставить."""
+        affected_cids = list(content.keys())
+        correct_pairs = [(cid, aid) for cid, aids in content.items() for aid in aids]
+        if not correct_pairs:
+            return
         async with self.__sessionmaker() as session:
-            stmt = delete(MoodleAssignment).where(MoodleAssignment.course_id == courseid)
-            if keep_these_ids:
-                stmt = stmt.where(MoodleAssignment.id.notin_(keep_these_ids))
+            stmt = delete(MoodleAssignment).where(
+                MoodleAssignment.course_id.in_(affected_cids),
+                tuple_(MoodleAssignment.course_id, MoodleAssignment.id).notin_(correct_pairs)
+            )
             await session.execute(stmt)
             await session.commit()
 

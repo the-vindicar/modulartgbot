@@ -1,15 +1,14 @@
+"""Содержит логику, необходимую для периодического опроса сервера Moodle на предмет изменений в нём."""
 import typing as t
 import asyncio
 import collections
 import datetime
 import logging
 
-import asyncpg
-
 from modules.moodle import MoodleAdapter, course_id, assignment_id
 from api import IntervalScheduler
 from ._config import MoodleMonitorConfig
-from ._data_layer import *
+from .datalayer import MoodleRepository
 
 
 _T = t.TypeVar('_T')
@@ -28,10 +27,12 @@ async def aiobatch(src: t.AsyncIterable[_T], batch_size: int) -> t.AsyncIterable
 
 
 class Scheduler:
+    """Реализует периодический опрос сервера Moodle и кэширует результаты в БД.
+    Распределяет запросы по интервалу времени, чтобы снизить пиковую нагрузку."""
     def __init__(self, cfg: MoodleMonitorConfig, log: logging.Logger,
-                 moodle: MoodleAdapter, conn: asyncpg.Connection):
+                 moodle: MoodleAdapter, repo: MoodleRepository):
         self.__moodle = moodle
-        self.__conn = conn
+        self.__repo = repo
         self.__cfg = cfg
         self.__log = log
         self.wakeup = asyncio.Event()
@@ -56,8 +57,10 @@ class Scheduler:
         )
 
     async def scheduler_task(self) -> t.NoReturn:
+        """Выполняет бесконечный цикл ожидания и опроса сервера Moodle на предмет изменений."""
         while True:
-            #now = datetime.datetime.now(datetime.timezone.utc)
+            # TODO: вернуть обратно правильное время. Это только для тестирования!
+            # now = datetime.datetime.now(datetime.timezone.utc)
             now = datetime.datetime(2025, 5, 26, 12, 0, 0, tzinfo=datetime.timezone.utc)
             self.__log.warning('COURSES')
             await self._check_courses(now)
@@ -84,8 +87,7 @@ class Scheduler:
                     batch_size=self.__cfg.courses.db_batch_size
                 )
                 async for chunk in aiobatch(course_stream, self.__cfg.courses.db_batch_size):
-                    async with self.__conn.transaction(readonly=False):
-                        await store_courses(self.__conn, chunk)
+                    await self.__repo.store_courses(chunk, now)
             except Exception as err:
                 self.__log.error('Failed to update courses!', exc_info=err)
             else:
@@ -94,8 +96,7 @@ class Scheduler:
     async def _check_assignments(self, now: datetime.datetime) -> None:
         if self.__update_assignments.is_empty():
             try:
-                async with self.__conn.transaction(readonly=True):
-                    course_ids = await get_open_course_ids(self.__conn, now, with_dates_only=False)
+                course_ids = await self.__repo.get_open_course_ids(now, with_dates_only=False)
             except Exception as err:
                 self.__log.error('Failed to get open courses!', exc_info=err)
             else:
@@ -108,27 +109,26 @@ class Scheduler:
                 self.__log.debug('Updating assignments for courses %s',
                                  ', '.join(f'#{cid}' for cid in course_ids))
                 assign_stream = self.__moodle.stream_assignments(course_ids)
-                total = collections.defaultdict(int)
+                known_assignments: dict[course_id, list[assignment_id]] = collections.defaultdict(list)
                 async for chunk in aiobatch(assign_stream, self.__cfg.assignments.db_batch_size):
                     for a in chunk:
-                        total[a.course_id] += 1
-                    async with self.__conn.transaction(readonly=False):
-                        await store_assignments(self.__conn, chunk)
+                        known_assignments[a.course_id].append(a.id)
+                    await self.__repo.store_assignments(chunk)
+                await self.__repo.drop_assignments_except_for(known_assignments)
             except Exception as err:
                 self.__log.error('Failed to update assignments!', exc_info=err)
             else:
                 self.__log.info('Assignments updated successfully for course(s) %s',
-                                ', '.join(f'#{cid}({count})' for cid, count in total.items()))
+                                ', '.join(f'#{cid}({len(assigns)})' for cid, assigns in known_assignments.items()))
 
     async def _check_submissions_active(self, now: datetime.datetime) -> None:
         if self.__update_open_submissions.is_empty():
             try:
-                async with self.__conn.transaction(readonly=True):
-                    assigns = await get_active_assignments_ending_later(
-                        self.__conn, now=now,
-                        before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
-                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds)
-                    )
+                assigns = await self.__repo.get_active_assignment_ids_not_ending_soon(
+                    now=now,
+                    before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
+                    after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds)
+                )
             except Exception as err:
                 self.__log.error('Failed to get active assignments!', exc_info=err)
             else:
@@ -142,12 +142,11 @@ class Scheduler:
     async def _check_submissions_deadline(self, now: datetime.datetime) -> None:
         if self.__update_deadline_submissions.is_empty():
             try:
-                async with self.__conn.transaction(readonly=True):
-                    assigns = await get_active_assignments_ending_soon(
-                        self.__conn, now=now,
-                        before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
-                        after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
-                        )
+                assigns = await self.__repo.get_active_assignment_ids_ending_soon(
+                    now=now,
+                    before=datetime.timedelta(seconds=self.__cfg.assignments.deadline_before_seconds),
+                    after=datetime.timedelta(seconds=self.__cfg.assignments.deadline_after_seconds),
+                    )
             except Exception as err:
                 self.__log.error('Failed to get active assignments!', exc_info=err)
             else:
@@ -160,8 +159,7 @@ class Scheduler:
 
     async def _update_submissions_for(self, assign_ids: t.Collection[assignment_id]):
         try:
-            async with self.__conn.transaction(readonly=True):
-                subtimes = await get_last_submission_times(self.__conn, assign_ids)
+            subtimes = await self.__repo.get_last_submission_times(assign_ids)
             for aid, lastsub in subtimes.items():
                 self.__log.debug('Updating submissions for assignment #%d...', aid)
                 start_time = lastsub + datetime.timedelta(seconds=1) if lastsub is not None else None
@@ -169,8 +167,7 @@ class Scheduler:
                 total = 0
                 async for chunk in aiobatch(assign_stream, self.__cfg.submissions.db_batch_size):
                     total += len(chunk)
-                    async with self.__conn.transaction(readonly=False):
-                        await store_submissions(self.__conn, chunk)
+                    await self.__repo.store_submissions(chunk)
                 self.__log.debug('Found %d new submissions for assignment #%d.', total, aid)
         except Exception as err:
             self.__log.error('Failed to update submissions!', exc_info=err)
