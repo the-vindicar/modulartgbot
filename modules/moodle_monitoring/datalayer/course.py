@@ -1,7 +1,7 @@
 """Описывает модели курса Moodle и групп в курсе для кэша сущностей Moodle."""
 from datetime import datetime
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import MoodleBase
@@ -14,9 +14,9 @@ class MoodleCourse(MoodleBase):
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID курса')
     shortname: Mapped[str] = mapped_column(nullable=False, comment='Короткое название курса')
     fullname: Mapped[str] = mapped_column(nullable=False, comment='Полное название курса')
-    starts: Mapped[datetime] = mapped_column(nullable=True, comment='Когда курс открывается')
-    ends: Mapped[datetime] = mapped_column(nullable=True, comment='Когда курс закрывается')
-    last_seen: Mapped[datetime] = mapped_column(nullable=False, server_default='NOW()',
+    starts: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, comment='Когда курс открывается')
+    ends: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, comment='Когда курс закрывается')
+    last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default='NOW()',
                                                 comment='Когда курс упоминался последний раз')
 
 

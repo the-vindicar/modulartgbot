@@ -1,7 +1,7 @@
 """Описывает модель задания (assignment) и ответа (submission) для кэша сущностей Moodle."""
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Sequence
+from sqlalchemy import ForeignKey, Sequence, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import MoodleBase
@@ -18,9 +18,12 @@ class MoodleAssignment(MoodleBase):
         ForeignKey(MoodleCourse.id, ondelete="cascade"),
         comment='ID курса, которому принадлежит задание')
     name: Mapped[str] = mapped_column(nullable=False, comment='Название задания')
-    opening: Mapped[datetime] = mapped_column(nullable=True, comment='Когда задание открывается', index=True)
-    closing: Mapped[datetime] = mapped_column(nullable=True, comment='Срок сдачи ответов на задание', index=True)
-    cutoff: Mapped[datetime] = mapped_column(nullable=True, comment='Когда задание закрывается', index=True)
+    opening: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, index=True,
+                                              comment='Когда задание открывается')
+    closing: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, index=True,
+                                              comment='Срок сдачи ответов на задание')
+    cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True, index=True,
+                                             comment='Когда задание закрывается')
 
 
 class MoodleSubmission(MoodleBase):
@@ -33,7 +36,8 @@ class MoodleSubmission(MoodleBase):
     user_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleUser.id, ondelete='cascade'),
         comment='ID пользователя, давшего ответ')
-    updated: Mapped[datetime] = mapped_column(nullable=False, comment='Момент последнего изменения', index=True)
+    updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True,
+                                              comment='Момент последнего изменения')
     status: Mapped[str] = mapped_column(nullable=False, comment='Статус ответа')
 
 
@@ -56,4 +60,5 @@ class MoodleSubmittedFile(MoodleBase):
     filesize: Mapped[int] = mapped_column(nullable=False, comment='Размер файла в байтах')
     mimetype: Mapped[str] = mapped_column(nullable=False, comment='MIME-тип файла')
     url: Mapped[str] = mapped_column(nullable=False, comment='URL для скачивания файла (потребуется токен)')
-    uploaded: Mapped[datetime] = mapped_column(nullable=False, index=True, comment='Когда файл был загружен')
+    uploaded: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True,
+                                               comment='Когда файл был загружен')
