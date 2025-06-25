@@ -1,3 +1,4 @@
+"""Различные мелкие полезные утилиты."""
 import asyncio
 import contextlib
 import datetime
@@ -6,11 +7,25 @@ import logging
 import typing as t
 
 
-__all__ = ['background_task', 'IntervalScheduler']
+__all__ = ['aiobatch', 'background_task', 'IntervalScheduler']
 _T = t.TypeVar('_T')
 
 
+async def aiobatch(src: t.AsyncIterable[_T], batch_size: int) -> t.AsyncIterable[list[_T]]:
+    """Группирует содержимое асинхронного генератора `src` в пакеты по `batch_size` элементов."""
+    batch_list = []
+    async for item in src:
+        batch_list.append(item)
+        if len(batch_list) >= batch_size:
+            yield batch_list
+            batch_list = []
+    if batch_list:
+        yield batch_list
+
+
 def done_callback(task: asyncio.Task):
+    """Реагирует на завершение фоновой задачи. Если она завершилась из-за исключения, немедленно выводит запись
+    об этом исключении в журнал работы."""
     try:
         exc = task.exception()
     except asyncio.CancelledError:
@@ -88,6 +103,10 @@ class IntervalScheduler(t.Generic[_T]):
             self.events.append((ts, tuple(objects)))
 
     def pop_triggered_objects(self, now: datetime.datetime) -> list[_T]:
+        """Извлекает и возвращает список объектов, которые следует опросить к моменту now. Может вернуть пустой список!
+        Объекты удаляются из списка отслеживаемых, чтобы избежать их повторного опроса.
+        :param now: Текущий момент времени.
+        :returns: Список объектов, которые следует опросить. Может быть пуст."""
         now = now.astimezone(datetime.timezone.utc)
         past = []
         for i in range(len(self.events) - 1, -1, -1):
@@ -98,6 +117,7 @@ class IntervalScheduler(t.Generic[_T]):
         return past
 
     def get_next_trigger_time(self) -> t.Optional[datetime.datetime]:
+        """Возвращает время, когда нужно будет опросить следующую партию объектов, или None, если опрашивать нечего."""
         if not self.events:
             return None
         return self.events[0][0]
