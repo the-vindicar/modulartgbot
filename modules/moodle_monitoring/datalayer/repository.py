@@ -6,6 +6,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 from sqlalchemy import select, delete, or_, and_, tuple_, func
+from sqlalchemy.dialects.postgresql import insert as upsert
 
 from modules.moodle import (Course, Participant, User, Role, Group, Assignment, Submission, SubmittedFile,
                             user_id, course_id, assignment_id)
@@ -112,90 +113,162 @@ class MoodleRepository:
 
     async def _store_roles_for(self, session: AsyncSession, courses: t.Collection[Course]) -> None:
         """Сохраняет роли, встреченные в указанных курсах."""
-        roles = set(MoodleRole(id=r.id, name=r.name) for c in courses for p in c.participants for r in p.roles)
-        session.add_all(roles)
-        await session.flush()
+        all_roles = set(r for c in courses for p in c.participants for r in p.roles)
+        if not all_roles:
+            return
+        stmt = upsert(MoodleRole)
+        stmt = stmt.on_conflict_do_update(index_elements=[MoodleRole.id], set_={
+            MoodleRole.name: stmt.excluded.name
+        })
+        await session.execute(
+            stmt,
+            [{'id': r.id, 'name': r.name} for r in all_roles]
+        )
+        await session.commit()
 
     async def _store_groups_for(self, session: AsyncSession, courses: t.Collection[Course]) -> None:
         """Сохраняет группы, встреченные в указанных курсах.
         Если группа, связанная с курсом, есть в БД, но не упоминается в курсе, она будет удалена из БД."""
         cids = set(c.id for c in courses)
-        groups = set(MoodleGroup(course_id=c.id, id=g.id, name=g.name)
-                     for c in courses for p in c.participants for g in p.groups)
-        session.add_all(groups)
-        await session.flush()
-        course_groups = set((mg.course_id, mg.id) for mg in groups)
-        if course_groups:
-            stmt = delete(MoodleGroup).where(
-                MoodleGroup.course_id.in_(cids),
-                tuple_(MoodleGroup.course_id, MoodleGroup.id).notin_(course_groups))
-            await session.execute(stmt)
+        groups = set((c.id, g) for c in courses for p in c.participants for g in p.groups)
+        if not groups:
+            return
+        stmt = upsert(MoodleGroup)
+        stmt = stmt.on_conflict_do_update(index_elements=[MoodleGroup.id], set_={
+            MoodleGroup.course_id: stmt.excluded.course_id,
+            MoodleGroup.name: stmt.excluded.name
+        })
+        await session.execute(
+            stmt,
+            [{'id': g.id, 'name': g.name, 'course_id': cid} for cid, g in groups]
+        )
+        course_groups = set((cid, g.id) for cid, g in groups)
+        stmt = delete(MoodleGroup).where(
+            MoodleGroup.course_id.in_(cids),
+            tuple_(MoodleGroup.course_id, MoodleGroup.id).notin_(course_groups))
+        await session.execute(stmt)
+        await session.commit()
 
     async def _store_participants_for(self, session: AsyncSession, courses: t.Collection[Course]) -> None:
         """Сохраняет участников указанных курсов, их роли и группы."""
         cids = set(c.id for c in courses)
-        participation = set(MoodleParticipant(course_id=c.id, user_id=p.user.id)
-                            for c in courses for p in c.participants)
-        session.add_all(participation)
-        await session.flush()
-        course_participants = set((mp.course_id, mp.user_id) for mp in participation)
-        if course_participants:
-            stmt = delete(MoodleParticipant).where(
-                MoodleParticipant.course_id.in_(cids),
-                tuple_(MoodleParticipant.course_id, MoodleParticipant.user_id).notin_(course_participants))
-            await session.execute(stmt)
+        participation = set((c.id, p.user.id) for c in courses for p in c.participants)
+        if participation:
+            stmt = upsert(MoodleParticipant)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=[MoodleParticipant.course_id, MoodleParticipant.user_id]
+            )
+            await session.execute(stmt, [
+                {MoodleParticipant.course_id: cid, MoodleParticipant.user_id: uid}
+                for cid, uid in participation
+            ])
+        stmt = delete(MoodleParticipant).where(MoodleParticipant.course_id.in_(cids))
+        if participation:
+            stmt = stmt.where(tuple_(MoodleParticipant.course_id, MoodleParticipant.user_id).notin_(participation))
+        await session.execute(stmt)
 
-        participant_roles = set(MoodleParticipantRoles(course_id=c.id, user_id=p.user.id, role_id=r.id)
-                                for c in courses for p in c.participants for r in p.roles)
-        session.add_all(participant_roles)
-        await session.flush()
-        participating_roles = set((c.id, p.user.id, r.id) for c in courses for p in c.participants for r in p.roles)
-        if participating_roles:
-            stmt = delete(MoodleParticipantRoles).where(
-                MoodleParticipantRoles.course_id.in_(cids),
-                tuple_(
-                    MoodleParticipantRoles.course_id,
-                    MoodleParticipantRoles.user_id,
-                    MoodleParticipantRoles.role_id
-                ).notin_(participating_roles))
-            await session.execute(stmt)
+        participant_roles = set((c.id, p.user.id, r.id) for c in courses for p in c.participants for r in p.roles)
+        if participant_roles:
+            stmt = upsert(MoodleParticipantRoles)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=[MoodleParticipantRoles.course_id, MoodleParticipantRoles.user_id,
+                                MoodleParticipantRoles.role_id]
+            )
+            await session.execute(stmt, [
+                {
+                    MoodleParticipantRoles.course_id: cid,
+                    MoodleParticipantRoles.user_id: uid,
+                    MoodleParticipantRoles.role_id: rid
+                }
+                for cid, uid, rid in participant_roles
+            ])
+        stmt = delete(MoodleParticipantRoles).where(MoodleParticipantRoles.course_id.in_(cids))
+        if participant_roles:
+            stmt = stmt.where(tuple_(
+                MoodleParticipantRoles.course_id,
+                MoodleParticipantRoles.user_id,
+                MoodleParticipantRoles.role_id
+            ).notin_(participant_roles))
+        await session.execute(stmt)
 
-        participant_groups = set(MoodleParticipantGroups(course_id=c.id, user_id=p.user.id, group_id=g.id)
-                                 for c in courses for p in c.participants for g in p.groups)
-        session.add_all(participant_groups)
-        await session.flush()
-        participating_groups = set((c.id, p.user.id, g.id) for c in courses for p in c.participants for g in p.groups)
-        if participating_groups:
-            stmt = delete(MoodleParticipantGroups).where(
-                MoodleParticipantGroups.course_id.in_(cids),
-                tuple_(
-                    MoodleParticipantGroups.course_id,
-                    MoodleParticipantGroups.user_id,
-                    MoodleParticipantGroups.group_id
-                ).notin_(participating_groups))
-            await session.execute(stmt)
+        participant_groups = set((c.id, p.user.id, g.id) for c in courses for p in c.participants for g in p.groups)
+        if participant_groups:
+            stmt = upsert(MoodleParticipantGroups)
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=[MoodleParticipantGroups.course_id, MoodleParticipantGroups.user_id,
+                                MoodleParticipantGroups.group_id]
+            )
+            await session.execute(stmt, [
+                {
+                    MoodleParticipantGroups.course_id: cid,
+                    MoodleParticipantGroups.user_id: uid,
+                    MoodleParticipantGroups.group_id: gid
+                }
+                for cid, uid, gid in participant_groups
+            ])
+        stmt = delete(MoodleParticipantGroups).where(MoodleParticipantGroups.course_id.in_(cids))
+        if participant_groups:
+            stmt = stmt.where(tuple_(
+                MoodleParticipantGroups.course_id,
+                MoodleParticipantGroups.user_id,
+                MoodleParticipantGroups.group_id
+            ).notin_(participant_groups))
+        await session.execute(stmt)
+        await session.commit()
+
+    async def _store_users(self, session: AsyncSession, courses: t.Collection[Course],
+                           now: t.Optional[datetime]) -> None:
+        """Сохраняет пользователей, упомянутых на разных курсах."""
+        data = set(p for c in courses for p in c.participants)
+        if not data:
+            return
+        stmt = upsert(MoodleUser)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[MoodleUser.id],
+            set_={
+                MoodleUser.fullname: stmt.excluded.fullname,
+                MoodleUser.email: stmt.excluded.email,
+                MoodleUser.last_seen: stmt.excluded.last_seen
+            }
+        )
+        await session.execute(stmt, [
+            dict(id=p.user.id, fullname=p.user.name, email=p.user.email, last_seen=now)
+            for p in data
+        ])
+        await session.commit()
 
     async def store_courses(self, courses: t.Collection[Course], now: datetime = None) -> None:
         """Сохраняет записи о курсах в БД.
         :param courses: Коллекция курсов для сохранения.
         :param now: Время для пометки сохраняемых курсов (когда их в последний раз "видели").
         Если None, используется текущее время."""
+        courses = set(courses)
         if not courses:
             return
         now = now.astimezone(self.TZ) if now is not None else datetime.now(self.TZ)
         async with self.__sessionmaker() as session:
-            session.add_all(
-                MoodleCourse(id=c.id, shortname=c.shortname, fullname=c.fullname,
-                             starts=c.starts.astimezone(self.TZ) if c.starts else None,
-                             ends=c.ends.astimezone(self.TZ) if c.ends else None,
-                             last_seen=now)
+            data = [
+                dict(id=c.id, shortname=c.shortname, fullname=c.fullname,
+                     starts=c.starts.astimezone(self.TZ) if c.starts else None,
+                     ends=c.ends.astimezone(self.TZ) if c.ends else None,
+                     last_seen=now)
                 for c in courses
+            ]
+            stmt = upsert(MoodleCourse)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[MoodleCourse.id],
+                set_={
+                    MoodleCourse.shortname: stmt.excluded.shortname,
+                    MoodleCourse.fullname: stmt.excluded.fullname,
+                    MoodleCourse.starts: stmt.excluded.starts,
+                    MoodleCourse.ends: stmt.excluded.ends,
+                    MoodleCourse.last_seen: stmt.excluded.last_seen,
+                }
             )
-            await session.flush()
-            users = set(MoodleUser(id=p.user.id, fullname=p.user.name, email=p.user.email, last_seen=now)
-                        for c in courses for p in c.participants)
-            session.add_all(users)
-            await session.flush()
+            await session.execute(stmt, data)
+            await session.commit()
+
+            await self._store_users(session, courses, now)
             await self._store_roles_for(session, courses)
             await self._store_groups_for(session, courses)
             await self._store_participants_for(session, courses)
@@ -262,17 +335,27 @@ class MoodleRepository:
     async def store_assignments(self, assigns: t.Collection[Assignment]) -> None:
         """Сохраняет задания в базу данных, обновляя уже существующие записи, если надо.
         :param assigns: Коллекция сохраняемых заданий."""
+        assigns = set(assigns)
         if not assigns:
             return
+        data = [dict(id=a.id, course_id=a.course_id, name=a.name,
+                     opening=a.opening.astimezone(self.TZ) if a.opening else None,
+                     closing=a.closing.astimezone(self.TZ) if a.closing else None,
+                     cutoff=a.cutoff.astimezone(self.TZ) if a.cutoff else None)
+                for a in assigns]
         async with self.__sessionmaker() as session:
-            session.add_all(
-                MoodleAssignment(id=a.id, course_id=a.course_id, name=a.name,
-                                 opening=a.opening.astimezone(self.TZ) if a.opening else None,
-                                 closing=a.closing.astimezone(self.TZ) if a.closing else None,
-                                 cutoff=a.cutoff.astimezone(self.TZ) if a.cutoff else None)
-                for a in assigns
+            stmt = upsert(MoodleAssignment)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[MoodleAssignment.id],
+                set_={
+                    MoodleAssignment.course_id: stmt.excluded.course_id,
+                    MoodleAssignment.name: stmt.excluded.name,
+                    MoodleAssignment.opening: stmt.excluded.opening,
+                    MoodleAssignment.closing: stmt.excluded.closing,
+                    MoodleAssignment.cutoff: stmt.excluded.cutoff,
+                }
             )
-            await session.flush()
+            await session.execute(stmt, data)
             await session.commit()
 
     async def drop_assignments_except_for(self, content: dict[course_id, t.Collection[assignment_id]]) -> None:
@@ -281,13 +364,10 @@ class MoodleRepository:
         :param content: Набор пар "ID курса - список ID заданий", которые следует оставить."""
         affected_cids = list(content.keys())
         correct_pairs = [(cid, aid) for cid, aids in content.items() for aid in aids]
-        if not correct_pairs:
-            return
         async with self.__sessionmaker() as session:
-            stmt = delete(MoodleAssignment).where(
-                MoodleAssignment.course_id.in_(affected_cids),
-                tuple_(MoodleAssignment.course_id, MoodleAssignment.id).notin_(correct_pairs)
-            )
+            stmt = delete(MoodleAssignment).where(MoodleAssignment.course_id.in_(affected_cids))
+            if correct_pairs:
+                stmt = stmt.where(tuple_(MoodleAssignment.course_id, MoodleAssignment.id).notin_(correct_pairs))
             await session.execute(stmt)
             await session.commit()
 
@@ -405,22 +485,45 @@ class MoodleRepository:
     async def store_submissions(self, submissions: t.Collection[Submission]) -> None:
         """Сохраняет указанный набор ответов на задание, и сведения о приложенных к ним файлах.
         :param submissions: Ответ на задание, которые следует сохранить."""
+        submissions = set(submissions)
         if not submissions:
             return
         async with self.__sessionmaker() as session:
-            session.add_all(
-                MoodleSubmission(id=s.id, assignment_id=s.assignment_id, user_id=s.user_id,
-                                 status=s.status, updated=s.updated)
+            data = [
+                dict(id=s.id, assignment_id=s.assignment_id, user_id=s.user_id,
+                     status=s.status, updated=s.updated)
                 for s in submissions
+            ]
+            stmt = upsert(MoodleSubmission)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[MoodleSubmission.id],
+                set_={
+                    MoodleSubmission.status: stmt.excluded.status,
+                    MoodleSubmission.updated: stmt.excluded.updated,
+                }
             )
-            await session.flush()
-            session.add_all(
-                MoodleSubmittedFile(submission_id=s.id, assignment_id=s.assignment_id, user_id=s.user_id,
-                                    filename=f.filename, filesize=f.filesize, mimetype=f.mimetype,
-                                    url=f.url, uploaded=f.uploaded.astimezone(self.TZ))
+            await session.execute(stmt, data)
+
+            data = [
+                dict(submission_id=s.id, assignment_id=s.assignment_id, user_id=s.user_id,
+                     filename=f.filename, filesize=f.filesize, mimetype=f.mimetype,
+                     url=f.url, uploaded=f.uploaded.astimezone(self.TZ))
                 for s in submissions for f in s.files
-            )
-            await session.flush()
+            ]
+            if data:
+                stmt = upsert(MoodleSubmittedFile)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=[MoodleSubmittedFile.submission_id, MoodleSubmittedFile.filename],
+                    set_={
+                        MoodleSubmittedFile.user_id: stmt.excluded.user_id,
+                        MoodleSubmittedFile.filename: stmt.excluded.filename,
+                        MoodleSubmittedFile.url: stmt.excluded.url,
+                        MoodleSubmittedFile.filesize: stmt.excluded.filesize,
+                        MoodleSubmittedFile.mimetype: stmt.excluded.mimetype,
+                        MoodleSubmittedFile.uploaded: stmt.excluded.uploaded,
+                    }
+                )
+                await session.execute(stmt, data)
             await session.commit()
 
     async def drop_submissions(self, assignids: t.Collection[assignment_id], *,

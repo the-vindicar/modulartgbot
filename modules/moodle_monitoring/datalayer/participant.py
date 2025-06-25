@@ -13,10 +13,10 @@ __all__ = ['MoodleParticipant', 'MoodleParticipantGroups', 'MoodleParticipantRol
 class MoodleParticipant(MoodleBase):
     __tablename__ = 'MoodleParticipants'
     course_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleCourse.id, ondelete="cascade"),
+        ForeignKey(MoodleCourse.id, ondelete='cascade'),
         primary_key=True, comment='ID курса')
     user_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleUser.id, ondelete="cascade"),
+        ForeignKey(MoodleUser.id, ondelete='cascade'),
         primary_key=True, comment='ID пользователя-участника')
 
 
@@ -25,7 +25,7 @@ class MoodleParticipantRoles(MoodleBase):
     course_id: Mapped[int] = mapped_column(primary_key=True, comment='ID курса')
     user_id: Mapped[int] = mapped_column(primary_key=True, comment='ID пользователя-участника')
     role_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleRole.id, ondelete="cascade"),
+        ForeignKey(MoodleRole.id, ondelete='cascade'),
         primary_key=True, comment='ID роли')
     __table_args__ = (
         ForeignKeyConstraint(
