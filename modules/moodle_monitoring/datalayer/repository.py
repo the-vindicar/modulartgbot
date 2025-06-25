@@ -159,7 +159,7 @@ class MoodleRepository:
                 index_elements=[MoodleParticipant.course_id, MoodleParticipant.user_id]
             )
             await session.execute(stmt, [
-                {MoodleParticipant.course_id: cid, MoodleParticipant.user_id: uid}
+                {'course_id': cid, 'user_id': uid}
                 for cid, uid in participation
             ])
         stmt = delete(MoodleParticipant).where(MoodleParticipant.course_id.in_(cids))
@@ -175,11 +175,7 @@ class MoodleRepository:
                                 MoodleParticipantRoles.role_id]
             )
             await session.execute(stmt, [
-                {
-                    MoodleParticipantRoles.course_id: cid,
-                    MoodleParticipantRoles.user_id: uid,
-                    MoodleParticipantRoles.role_id: rid
-                }
+                {'course_id': cid, 'user_id': uid, 'role_id': rid}
                 for cid, uid, rid in participant_roles
             ])
         stmt = delete(MoodleParticipantRoles).where(MoodleParticipantRoles.course_id.in_(cids))
@@ -199,11 +195,7 @@ class MoodleRepository:
                                 MoodleParticipantGroups.group_id]
             )
             await session.execute(stmt, [
-                {
-                    MoodleParticipantGroups.course_id: cid,
-                    MoodleParticipantGroups.user_id: uid,
-                    MoodleParticipantGroups.group_id: gid
-                }
+                {'course_id': cid, 'user_id': uid, 'group_id': gid}
                 for cid, uid, gid in participant_groups
             ])
         stmt = delete(MoodleParticipantGroups).where(MoodleParticipantGroups.course_id.in_(cids))
@@ -389,9 +381,13 @@ class MoodleRepository:
                 or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
                 or_(  # хотя бы один из сроков должен попадать в интервал
                     # срок сдачи находится в интервале
-                    and_(MoodleAssignment.closing.isnot(None), start <= MoodleAssignment.closing <= end),
+                    and_(MoodleAssignment.closing.isnot(None),
+                         start <= MoodleAssignment.closing,
+                         MoodleAssignment.closing <= end),
                     # дата закрытия находится в интервале
-                    and_(MoodleAssignment.cutoff.isnot(None), start <= MoodleAssignment.cutoff <= end),
+                    and_(MoodleAssignment.cutoff.isnot(None),
+                         start <= MoodleAssignment.cutoff,
+                         MoodleAssignment.cutoff <= end),
                 ),
             ))
             result = await session.scalars(stmt)
@@ -415,9 +411,13 @@ class MoodleRepository:
                 or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
                 and_(  # ни один из сроков не должен попадать в интервал
                     # срок сдачи неизвестен или не находится в интервале
-                    or_(MoodleAssignment.closing.is_(None), ~(start <= MoodleAssignment.closing <= end)),
+                    or_(MoodleAssignment.closing.is_(None),
+                        start > MoodleAssignment.closing,
+                        MoodleAssignment.closing > end),
                     # дата закрытия неизвестна или не находится в интервале
-                    or_(MoodleAssignment.cutoff.is_(None), ~(start <= MoodleAssignment.cutoff <= end)),
+                    or_(MoodleAssignment.cutoff.is_(None),
+                        start > MoodleAssignment.cutoff,
+                        MoodleAssignment.cutoff > end),
                 ),
             ))
             result = await session.scalars(stmt)
