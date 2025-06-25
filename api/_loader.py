@@ -1,10 +1,12 @@
+"""Содержит классы, реализующие обнаружение, загрузку и сопровождение модулей."""
 import contextlib
 import dataclasses
 import importlib
 import sys
 from pathlib import Path
 import logging
-from typing import cast, final, Optional, Container, Coroutine, AsyncGenerator, Callable, Type, ClassVar, TypeVar
+from typing import (cast, final, Optional, Container, Coroutine, AsyncGenerator,
+                    Callable, Type, ClassVar, TypeVar, Union, Any)
 
 import quart
 
@@ -29,6 +31,7 @@ class BotCoreAPIImpl(CoreAPI):
 @final
 @dataclasses.dataclass(slots=True)
 class LoadedModule:
+    """Описывает загруженный модуль."""
     MODULES_DIR: ClassVar[str] = 'modules'
     name: str
     requires: frozenset[Type]
@@ -39,6 +42,7 @@ class LoadedModule:
 
     @staticmethod
     def load_from(mod_name: str, api: BotCoreAPIImpl) -> 'LoadedModule':
+        """Загружает модуль по имени, запоминая ссылку на API, которую он будет использовать."""
         module: PluginAPI = cast(PluginAPI, importlib.import_module(f'{LoadedModule.MODULES_DIR}.{mod_name}'))
         requires = frozenset(getattr(module, 'requires', None) or tuple())
         provides = frozenset(getattr(module, 'provides', None) or tuple())
@@ -53,6 +57,7 @@ class LoadedModule:
 
     @staticmethod
     def sort_dependencies(loaded: list['LoadedModule']) -> None:
+        """Сортирует список модулей так, чтобы зависимые модули были загружены после своих зависимостей."""
         available: set[Type] = set()
         ordered: list['LoadedModule'] = []
         unordered = loaded.copy()
@@ -73,11 +78,13 @@ class LoadedModule:
         loaded[:] = ordered
 
     async def enter_context(self) -> None:
+        """Входит в контекст модуля, выполняя его инициализацию."""
         if self.context is None:
             self.context = self.lifetime(self.api)
             await self.context.__anext__()
 
     async def exit_context(self) -> None:
+        """Покидает контекст модуля, позволяя ему освободить ресурсы и корректно завершить работу."""
         if self.context is not None:
             self.context, ctx = None, self.context
             await ctx.__anext__()
@@ -88,19 +95,34 @@ async def modules_lifespan(
         webapp: quart.Quart,
         cfg: ConfigManager,
         *, module_whitelist: Container[str] = None
-        ):
+        ) -> None:
+    """Основной менджер контекста, отвечающий за запуск, сопровождение и остановку модулей.
+    :param webapp: Основное приложение (веб-сервер). Используется для регистрации blueprint'ов.
+    :param cfg: Менеджер конфигурации. Передаётся модулям для загрузки их конфигов.
+    :param module_whitelist: Белый список модулей для загрузки. Если пуст, то будут загружены все обнаруженные модули.
+    """
     log = logging.getLogger('modules')
-    module_api_providers: dict[type, Coroutine] = {}
+    module_api_providers: dict[Type[_T], Coroutine[Any, Any, _T]] = {}
 
-    def get_api(api_provider):
-        return module_api_providers[api_provider]
+    def get_api(api_class: Type[_T]) -> Coroutine[Any, Any, _T]:
+        """Реализация, позволяющая получить провайдера для указанной зависимости."""
+        return module_api_providers[api_class]
 
-    def add_api(api_provider: Coroutine, api_class: type) -> None:
-        if api_class in module_api_providers:
-            raise KeyError(f'API {api_class.__name__} has already been provided.')
-        module_api_providers[api_class] = api_provider
+    def add_api(api_provider: Union[Coroutine[Any, Any, _T], _T], api_class: Type[_T]) -> None:
+        """Реализация, позволяющая зарегистрировать провайдера для предоставляемой зависимости."""
+        if isinstance(api_provider, api_class):  # если нам передали объект, мы просто всегда возвращаем его.
+            async def provider() -> _T:
+                """Возвращает экземпляр класса."""
+                return api_provider
+
+            module_api_providers[api_class] = provider  # type: ignore
+        else:  # если нам передали корутину, мы будем вызывать её для получения зависимости
+            if api_class in module_api_providers:
+                raise KeyError(f'API {api_class.__name__} has already been provided.')
+            module_api_providers[api_class] = api_provider
 
     def register_web_blueprint(blueprint):
+        """Реализация, позволяющая зарегистрировать blueprint для веб-сервера."""
         webapp.register_blueprint(blueprint)
 
     loaded_modules = []
