@@ -56,11 +56,17 @@ class Participant:
     roles: tuple[Role, ...]
     groups: tuple[Group, ...]
 
-    def __eq__(self, other: 'Participant') -> bool:
-        return self.user == other.user
+    def __eq__(self, other: 'Participant' | User) -> bool:
+        if isinstance(other, Participant):
+            return self.user == other.user
+        else:
+            return self.user == other
 
-    def __neq__(self, other: 'Participant') -> bool:
-        return self.user != other.user
+    def __neq__(self, other: 'Participant' | User) -> bool:
+        if isinstance(other, Participant):
+            return self.user != other.user
+        else:
+            return self.user != other
 
     def __hash__(self) -> int:
         return hash(self.user)
@@ -72,8 +78,7 @@ class Course(_IDMixin[course_id]):
     id: course_id
     shortname: str
     fullname: str
-    students: tuple[Participant, ...]
-    teachers: tuple[Participant, ...]
+    participants: tuple[Participant, ...]
     starts: t.Optional[datetime.datetime] = None
     ends: t.Optional[datetime.datetime] = None
 

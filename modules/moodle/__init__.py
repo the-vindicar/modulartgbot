@@ -1,4 +1,4 @@
-from typing import Iterable, Collection, AsyncIterable, Optional
+from typing import Iterable, AsyncIterable, Optional
 import datetime
 import dataclasses
 import logging
@@ -14,13 +14,10 @@ from api import CoreAPI
 class MoodleAdapter(Moodle):
     async def stream_enrolled_courses(self,
                                       in_progress_only: bool = True,
-                                      teacher_role_ids: Collection[role_id] = tuple(),
                                       batch_size: int = 10,
                                       ) -> AsyncIterable[Course]:
         """Возвращает поток объектов-курсов, на которые мы подписаны, соответствующих условиям.
         :param in_progress_only: Если True, возвращать нужно только курсы, которые уже начались, но ещё не закончились.
-        :param teacher_role_ids: Коллекция идентификаторов ролей, которые считаются преподавателями.
-            Пользователи с этими ролями попадут в коллекцию `teachers` объекта курса.
         :param batch_size: Сколько курсов запрашивать за один запрос.
         :returns: Асинхронный поток экземпляров класса :class:`Course`."""
         offset, limit = 0, batch_size
@@ -36,14 +33,9 @@ class MoodleAdapter(Moodle):
                 starts = self.timestamp2datetime(item.startdate)
                 ends = self.timestamp2datetime(item.enddate)
                 cid = item.id
-                teachers, students = [], []
-                async for p in self.stream_users(cid):
-                    if any(r in teacher_role_ids for r in p.roles):
-                        teachers.append(p)
-                    else:
-                        students.append(p)
+                participants = [p async for p in self.stream_users(cid)]
                 c = Course(id=cid, shortname=item.shortname, fullname=item.fullname,
-                           starts=starts, ends=ends, students=tuple(students), teachers=tuple(teachers))
+                           starts=starts, ends=ends, participants=tuple(participants))
                 yield c
 
     async def stream_users(self,
