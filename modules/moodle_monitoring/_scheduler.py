@@ -94,6 +94,7 @@ class Scheduler:
                 self.__log.debug('Courses updated successfully.')
 
     async def _check_assignments(self, now: datetime.datetime) -> None:
+        """Проверяет, нет ли измений в заданиях отслеживаемых курсов."""
         if self.__update_assignments.is_empty():
             try:
                 course_ids = await self.__repo.get_open_course_ids(now, with_dates_only=False)
@@ -122,6 +123,7 @@ class Scheduler:
                                 ', '.join(f'#{cid}({len(assigns)})' for cid, assigns in known_assignments.items()))
 
     async def _check_submissions_active(self, now: datetime.datetime) -> None:
+        """Проверяет, нет ли новых ответов на задания, которые завершаются ещё не скоро."""
         if self.__update_open_submissions.is_empty():
             try:
                 assigns = await self.__repo.get_active_assignment_ids_not_ending_soon(
@@ -140,6 +142,7 @@ class Scheduler:
             await self._update_submissions_for(assign_ids)
 
     async def _check_submissions_deadline(self, now: datetime.datetime) -> None:
+        """Проверяет, нет ли новых ответов на задания, которые скоро завершатся."""
         if self.__update_deadline_submissions.is_empty():
             try:
                 assigns = await self.__repo.get_active_assignment_ids_ending_soon(
@@ -158,6 +161,7 @@ class Scheduler:
                 await self._update_submissions_for(assign_ids)
 
     async def _update_submissions_for(self, assign_ids: t.Collection[assignment_id]):
+        """Скачивает и сохраняет ответы на указанные задания."""
         try:
             subtimes = await self.__repo.get_last_submission_times(assign_ids)
             for aid, lastsub in subtimes.items():

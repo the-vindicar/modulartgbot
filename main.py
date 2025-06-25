@@ -1,3 +1,5 @@
+"""Модульная система для сопровождения работы преподавателя кафедры ИСТ (ну т.е. меня).
+Если тебе приходится это поддерживать, я тебе сочувствую."""
 import asyncio
 import dataclasses
 import os
@@ -19,6 +21,7 @@ cfg = ConfigManagerImpl(data / 'config')
 
 @dataclasses.dataclass
 class WebConfig:
+    """Конфигурация веб-сервера."""
     host: str = '0.0.0.0'
     port: int = 8080
     ca_certs: t.Optional[str] = None
@@ -28,17 +31,19 @@ class WebConfig:
 
 @app.while_serving
 async def context():
+    """Этот контекст выполняется до yield при запуске сервера, а остальная часть - при остановке сервера."""
     await setup_logging(cfg, app)
     modules_context = modules_lifespan(
         webapp=app,
         cfg=cfg,
-        module_whitelist=['db']
+        module_whitelist=['db', 'moodle', 'moodle_monitoring']
     )
     async with modules_context:
         yield
 
 
 async def main():
+    """Тело программы. Конфигурирует и запускает веб-сервер."""
     web_cfg = await cfg.load('web', WebConfig)
     await app.run_task(
         web_cfg.host, web_cfg.port,

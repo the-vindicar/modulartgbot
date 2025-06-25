@@ -1,3 +1,4 @@
+"""Набор DTO-классов, описывающих сущности Moodle."""
 import typing as t
 import dataclasses
 import datetime
@@ -33,6 +34,7 @@ class _IDMixin(t.Generic[_IDType]):
 
 @dataclasses.dataclass(frozen=True, init=True)
 class User(_IDMixin[user_id]):
+    """Пользователь Moodle. Уникален в рамках сервера Moodle."""
     id: user_id
     name: str
     email: t.Optional[str] = None
@@ -40,29 +42,32 @@ class User(_IDMixin[user_id]):
 
 @dataclasses.dataclass(frozen=True, init=True)
 class Role(_IDMixin[role_id]):
+    """Роль пользователя Moodle. Уникальна в рамках сервера Moodle."""
     id: role_id
     name: str
 
 
 @dataclasses.dataclass(frozen=True, init=True)
 class Group(_IDMixin[group_id]):
+    """Группа пользователей в курсе Moodle. Имеет уникальный ID, но определена в рамках курса."""
     id: group_id
     name: str
 
 
 @dataclasses.dataclass(frozen=True, init=True)
 class Participant:
+    """Участник курса Moodle. В контексте курса он имеет набор ролей и групп."""
     user: User
     roles: tuple[Role, ...]
     groups: tuple[Group, ...]
 
-    def __eq__(self, other: 'Participant' | User) -> bool:
+    def __eq__(self, other: t.Union['Participant', User]) -> bool:
         if isinstance(other, Participant):
             return self.user == other.user
         else:
             return self.user == other
 
-    def __neq__(self, other: 'Participant' | User) -> bool:
+    def __neq__(self, other: t.Union['Participant', User]) -> bool:
         if isinstance(other, Participant):
             return self.user != other.user
         else:
