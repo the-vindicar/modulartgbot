@@ -13,6 +13,7 @@ import quart
 from ._protocols import CoreAPI, PluginAPI, ConfigManager
 
 
+__all__ = ['modules_lifespan']
 _T = TypeVar('_T')
 
 
@@ -95,7 +96,7 @@ async def modules_lifespan(
         webapp: quart.Quart,
         cfg: ConfigManager,
         *, module_whitelist: Container[str] = None
-        ) -> None:
+        ):
     """Основной менджер контекста, отвечающий за запуск, сопровождение и остановку модулей.
     :param webapp: Основное приложение (веб-сервер). Используется для регистрации blueprint'ов.
     :param cfg: Менеджер конфигурации. Передаётся модулям для загрузки их конфигов.

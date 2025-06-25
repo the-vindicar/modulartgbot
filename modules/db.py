@@ -1,17 +1,19 @@
+"""Предоставляет доступ к базе данных через посредничество асинхронного варианта SQLAlchemy."""
 import typing as t
 import os
 import logging
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from api import CoreAPI
 
 requires = []
-provides = [AsyncEngine, AsyncSession, ]
+provides = [AsyncEngine]
 
 
 async def lifetime(api: CoreAPI) -> t.AsyncGenerator:
+    """Тело модуля."""
     host = os.environ['POSTGRES_HOST']
     user = os.environ['POSTGRES_USER']
     pwd = os.environ['POSTGRES_PWD']
@@ -21,19 +23,11 @@ async def lifetime(api: CoreAPI) -> t.AsyncGenerator:
     log = logging.getLogger('modules.db')
     log.info('Connecting to database...')
     engine = create_async_engine(dsn)
-    session_maker = async_sessionmaker(bind=engine, )
     log.info('Connected successfuly to %s@%s', dbname, host)
     if is_temp_database:
         log.warning('Database is configured as temporary, all tables will be dropped on exit!')
 
-    async def engine_provider() -> AsyncEngine:
-        return engine
-
-    async def session_provider() -> AsyncSession:
-        return session_maker()
-
-    api.register_api_provider(engine_provider, AsyncEngine)
-    api.register_api_provider(session_provider, AsyncSession)
+    api.register_api_provider(engine, AsyncEngine)
     yield
     if is_temp_database:
         log.warning('Database is configured as temporary, dropping all tables!')

@@ -1,3 +1,4 @@
+"""Предоставляет обёртку для доступа к серверу Moodle."""
 from typing import Iterable, AsyncIterable, Optional
 import datetime
 import dataclasses
@@ -12,6 +13,7 @@ from api import CoreAPI
 
 
 class MoodleAdapter(Moodle):
+    """Адаптер, расширяющий базовый класс для работы с Moodle методами для работы с набором упрощённых DTO."""
     async def stream_enrolled_courses(self,
                                       in_progress_only: bool = True,
                                       batch_size: int = 10,
@@ -149,8 +151,10 @@ provides = [MoodleAdapter]
 
 
 async def lifetime(api: CoreAPI):
+    """Тело модуля."""
     @dataclasses.dataclass
     class MoodleConfig:
+        """Конфигурация связи с сервером Moodle."""
         base_url: str
         user: str
         pwd: str = None
@@ -159,22 +163,19 @@ async def lifetime(api: CoreAPI):
     log = logging.getLogger(name=f'modules.moodle')
 
     cfg = await api.config.load('moodle', MoodleConfig)
-    m = MoodleAdapter(cfg.base_url, cfg.user, os.getenv('MOODLE_PWD', cfg.pwd), log=log)
-    m.timezone = zoneinfo.ZoneInfo(cfg.timezone)
-    async with m:
+    moodle_instance = MoodleAdapter(cfg.base_url, cfg.user, os.getenv('MOODLE_PWD', cfg.pwd), log=log)
+    moodle_instance.timezone = zoneinfo.ZoneInfo(cfg.timezone)
+    async with moodle_instance:
         try:
-            await m.login()
+            await moodle_instance.login()
         except Exception:
             log.error('Failed to connect to moodle instance at %s as %s',
-                      m.base_url, cfg.user, exc_info=True)
+                      moodle_instance.base_url, cfg.user, exc_info=True)
             raise
         else:
             log.info('Connected to moodle instance at %s as %s',
-                     m.base_url, cfg.user)
+                     moodle_instance.base_url, cfg.user)
 
-        async def provider() -> MoodleAdapter:
-            return m
-
-        api.register_api_provider(provider, MoodleAdapter)
+        api.register_api_provider(moodle_instance, MoodleAdapter)
         yield
-        log.info('Disconnected from moodle instance at %s', m.base_url)
+        log.info('Disconnected from moodle instance at %s', moodle_instance.base_url)
