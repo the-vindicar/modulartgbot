@@ -6,24 +6,12 @@ import datetime
 import logging
 
 from modules.moodle import MoodleAdapter, course_id, assignment_id
-from api import IntervalScheduler
+from api import IntervalScheduler, aiobatch
 from ._config import MoodleMonitorConfig
 from .datalayer import MoodleRepository
 
 
 _T = t.TypeVar('_T')
-
-
-async def aiobatch(src: t.AsyncIterable[_T], batch_size: int) -> t.AsyncIterable[list[_T]]:
-    """Группирует содержимое асинхронного генератора `src` в пакеты по `batch_size` элементов."""
-    batch_list = []
-    async for item in src:
-        batch_list.append(item)
-        if len(batch_list) >= batch_size:
-            yield batch_list
-            batch_list.clear()
-    if batch_list:
-        yield batch_list
 
 
 class Scheduler:
@@ -38,22 +26,22 @@ class Scheduler:
         self.wakeup = asyncio.Event()
         self.__update_courses = IntervalScheduler[None](
             duration=datetime.timedelta(seconds=self.__cfg.courses.update_interval_seconds),
-            batch_size=1, offset=0.0
+            batch_size=1, alignment=0.0
         )
         self.__update_assignments = IntervalScheduler[course_id](
             duration=datetime.timedelta(seconds=self.__cfg.assignments.update_interval_seconds),
             batch_size=self.__cfg.assignments.update_course_batch_size,
-            offset=1.0
+            alignment=1.0
         )
         self.__update_open_submissions = IntervalScheduler[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_open_interval_seconds),
             batch_size=self.__cfg.submissions.update_open_batch_size,
-            offset=1.0
+            alignment=1.0
         )
         self.__update_deadline_submissions = IntervalScheduler[assignment_id](
             duration=datetime.timedelta(seconds=self.__cfg.submissions.update_deadline_interval_seconds),
             batch_size=self.__cfg.submissions.update_deadline_batch_size,
-            offset=1.0
+            alignment=1.0
         )
 
     async def scheduler_task(self) -> t.NoReturn:

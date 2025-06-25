@@ -1,6 +1,6 @@
 """Описывает модели участника курса, ролей участника и групп участника для кэша сущностей Moodle."""
 from sqlalchemy import ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import MoodleBase
 from .users import MoodleUser, MoodleRole
@@ -18,10 +18,6 @@ class MoodleParticipant(MoodleBase):
     user_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleUser.__tablename__ + ".id", ondelete="cascade"),
         primary_key=True, comment='ID пользователя-участника')
-    course: Mapped[MoodleCourse] = relationship(back_populates='participants')
-    user: Mapped[MoodleUser] = relationship()
-    roles: Mapped[list[MoodleRole]] = relationship()
-    groups: Mapped[list[MoodleGroup]] = relationship()
 
 
 class MoodleParticipantRoles(MoodleBase):
@@ -35,8 +31,6 @@ class MoodleParticipantRoles(MoodleBase):
     role_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleRole.__tablename__ + ".id", ondelete="cascade"),
         primary_key=True, comment='ID роли')
-    participant: Mapped[MoodleParticipant] = relationship(back_populates='roles')
-    role: Mapped[MoodleRole] = relationship()
 
 
 class MoodleParticipantGroups(MoodleBase):
@@ -50,5 +44,3 @@ class MoodleParticipantGroups(MoodleBase):
     group_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleGroup.__tablename__ + ".id", ondelete="cascade"),
         primary_key=True, comment='ID группы')
-    participant: Mapped[MoodleParticipant] = relationship(back_populates='groups')
-    group: Mapped[MoodleGroup] = relationship()

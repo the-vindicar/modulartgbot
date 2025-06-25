@@ -2,7 +2,7 @@
 from datetime import datetime
 
 from sqlalchemy import ForeignKey, Sequence
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import MoodleBase
 from .course import MoodleCourse
@@ -17,7 +17,6 @@ class MoodleAssignment(MoodleBase):
     course_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleCourse.__tablename__+".id", ondelete="cascade"),
         comment='ID курса, которому принадлежит задание')
-    course: Mapped[MoodleCourse] = relationship()
     name: Mapped[str] = mapped_column(nullable=False, comment='Название задания')
     opening: Mapped[datetime] = mapped_column(nullable=True, comment='Когда задание открывается', index=True)
     closing: Mapped[datetime] = mapped_column(nullable=True, comment='Срок сдачи ответов на задание', index=True)
@@ -36,7 +35,6 @@ class MoodleSubmission(MoodleBase):
         comment='ID пользователя, давшего ответ')
     updated: Mapped[datetime] = mapped_column(nullable=False, comment='Момент последнего изменения', index=True)
     status: Mapped[str] = mapped_column(nullable=False, comment='Статус ответа')
-    files: Mapped[list['MoodleSubmittedFile']] = relationship()
 
 
 class MoodleSubmittedFile(MoodleBase):
@@ -59,4 +57,3 @@ class MoodleSubmittedFile(MoodleBase):
     mimetype: Mapped[str] = mapped_column(nullable=False, comment='MIME-тип файла')
     url: Mapped[str] = mapped_column(nullable=False, comment='URL для скачивания файла (потребуется токен)')
     uploaded: Mapped[datetime] = mapped_column(nullable=False, index=True, comment='Когда файл был загружен')
-    submission: Mapped[MoodleSubmission] = relationship(back_populates='files')
