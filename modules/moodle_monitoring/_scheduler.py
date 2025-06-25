@@ -50,11 +50,8 @@ class Scheduler:
             # TODO: вернуть обратно правильное время. Это только для тестирования!
             # now = datetime.datetime.now(datetime.timezone.utc)
             now = datetime.datetime(2025, 5, 26, 12, 0, 0, tzinfo=datetime.timezone.utc)
-            self.__log.warning('COURSES')
             await self._check_courses(now)
-            self.__log.warning('ASSIGNS')
             await self._check_assignments(now)
-            self.__log.warning('SUBS')
             await self._check_submissions_deadline(now)
             await self._check_submissions_active(now)
             try:
@@ -122,8 +119,7 @@ class Scheduler:
             except Exception as err:
                 self.__log.error('Failed to get active assignments!', exc_info=err)
             else:
-                if assigns:
-                    self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns))
+                self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns))
                 self.__update_open_submissions.set_queried_objects(assigns, now)
         assign_ids = self.__update_open_submissions.pop_triggered_objects(now)
         if assign_ids:
@@ -141,8 +137,7 @@ class Scheduler:
             except Exception as err:
                 self.__log.error('Failed to get active assignments!', exc_info=err)
             else:
-                if assigns:
-                    self.__log.debug('Tracking %d open deadline assignments.', len(assigns))
+                self.__log.debug('Tracking %d open deadline assignments.', len(assigns))
                 self.__update_deadline_submissions.set_queried_objects(assigns, now)
             assign_ids = self.__update_deadline_submissions.pop_triggered_objects(now)
             if assign_ids:
