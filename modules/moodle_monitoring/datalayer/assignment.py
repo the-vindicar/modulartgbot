@@ -15,7 +15,7 @@ class MoodleAssignment(MoodleBase):
     __tablename__ = 'MoodleAssignments'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID задания')
     course_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleCourse.__tablename__+".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleCourse.__tablename__+".id", ondelete="cascade"),
         comment='ID курса, которому принадлежит задание')
     course: Mapped[MoodleCourse] = relationship()
     name: Mapped[str] = mapped_column(nullable=False, comment='Название задания')
@@ -28,11 +28,11 @@ class MoodleSubmission(MoodleBase):
     __tablename__ = 'MoodleSubmissions'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID ответа на задание')
     assignment_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleAssignment.__tablename__+".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleAssignment.__tablename__+".id", ondelete="cascade"),
         comment='ID задания на которое дан ответ',
         index=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleUser.__tablename__ + ".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleUser.__tablename__ + ".id", ondelete="cascade"),
         comment='ID пользователя, давшего ответ')
     updated: Mapped[datetime] = mapped_column(nullable=False, comment='Момент последнего изменения', index=True)
     status: Mapped[str] = mapped_column(nullable=False, comment='Статус ответа')
@@ -44,15 +44,15 @@ class MoodleSubmittedFile(MoodleBase):
     id: Mapped[int] = mapped_column(Sequence('MoodleSubmittedFiles_id'), nullable=False,
                                     comment='Уникальный номер файла (не ID в Moodle)')
     submission_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleSubmission.__tablename__+".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleSubmission.__tablename__+".id", ondelete="cascade"),
         primary_key=True,
         comment='ID ответа, к которому прикреплён этот файл')
     assignment_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleAssignment.__tablename__+".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleAssignment.__tablename__+".id", ondelete="cascade"),
         comment='ID задания, к ответу на которое прикреплён этот файл',
         index=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleUser.__tablename__+".id", cascade="all, delete-orphan"),
+        ForeignKey(MoodleUser.__tablename__+".id", ondelete="cascade"),
         comment='ID пользователя, загрузившего этот файл')
     filename: Mapped[str] = mapped_column(primary_key=True, comment='Имя файла (возможно, с каталогом)')
     filesize: Mapped[int] = mapped_column(nullable=False, comment='Размер файла в байтах')
