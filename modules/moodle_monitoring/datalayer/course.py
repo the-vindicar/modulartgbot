@@ -22,8 +22,8 @@ class MoodleCourse(MoodleBase):
 
 class MoodleGroup(MoodleBase):
     __tablename__ = 'MoodleGroups'
-    course_id: Mapped[int] = mapped_column(
-        ForeignKey(MoodleCourse.__tablename__+".id", ondelete="cascade"),
-        primary_key=True, comment='ID курса, в котором описана группа')
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID группы (уникальное в рамках сервера)')
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey(MoodleCourse.id, ondelete="cascade"),
+        comment='ID курса, в котором описана группа')
     name: Mapped[str] = mapped_column(nullable=False, comment='Название группы')

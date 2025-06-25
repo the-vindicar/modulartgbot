@@ -34,6 +34,7 @@ class MoodleRepository:
         engine: AsyncEngine = self.__sessionmaker.kw['bind']
         async with engine.connect() as conn:
             await conn.run_sync(MoodleBase.metadata.create_all)
+            await conn.commit()
 
     # region Курсы
     async def load_courses(self, course_ids: t.Collection[course_id]) -> list[Course]:
