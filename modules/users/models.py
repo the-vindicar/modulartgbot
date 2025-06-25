@@ -62,16 +62,18 @@ class UserRepository:
     async def store(self, user: SiteUser):
         async with self.__sessionmaker() as session:
             session.add(user)
+            await session.commit()
 
     async def delete_by_tgid(self, tgid: int) -> None:
         async with self.__sessionmaker() as session:
             stmt = delete(SiteUser).where(SiteUser.tgid == tgid)
             await session.execute(stmt)
+            await session.commit()
 
     async def get_by_tgid(self, tgid: int) -> SiteUser | None:
         async with self.__sessionmaker() as session:
-            stmt = select(SiteUser).where(SiteUser.tgid == tgid)  # type: ignore
-            return await session.scalar(stmt)  # type: ignore
+            stmt = select(SiteUser).where(SiteUser.tgid == tgid)
+            return await session.scalar(stmt)
 
     async def get_by_id(self, userid: int) -> SiteUser | None:
         async with self.__sessionmaker() as session:
@@ -79,20 +81,20 @@ class UserRepository:
 
     async def get_role_by_tg_id(self, tgid: int) -> UserRoles:
         async with self.__sessionmaker() as session:
-            stmt = select(SiteUser.role).select_from(SiteUser).where(SiteUser.tgid == tgid)  # type: ignore
-            result = await session.scalar(stmt)  # type: ignore
+            stmt = select(SiteUser.role).select_from(SiteUser).where(SiteUser.tgid == tgid)
+            result = await session.scalar(stmt)
         return UserRoles(result) if result is not None else UserRoles.UNVERIFIED
 
     async def get_admin(self) -> SiteUser | None:
         async with self.__sessionmaker() as session:
-            stmt = select(SiteUser).where(SiteUser.role == UserRoles.SITE_ADMIN)  # type: ignore
-            return await session.scalar(stmt)  # type: ignore
+            stmt = select(SiteUser).where(SiteUser.role == UserRoles.SITE_ADMIN)
+            return await session.scalar(stmt)
 
-    def get_all_with_role(self, role: UserRoles) -> t.AsyncIterable[SiteUser]:
+    async def get_all_with_role(self, role: UserRoles) -> t.AsyncIterable[SiteUser]:
         async with self.__sessionmaker() as session:
             stmt = (
-                select(SiteUser)  # type: ignore
+                select(SiteUser)
                 .where(SiteUser.role == role)
                 .order_by(SiteUser.registered.desc())
             )
-            return session.stream_scalars(stmt)  # type: ignore
+            return await session.stream_scalars(stmt)
