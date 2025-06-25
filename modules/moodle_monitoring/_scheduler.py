@@ -6,7 +6,7 @@ import logging
 
 import asyncpg
 
-from modules.moodle import MoodleAdapter, course_id, assignment_id, role_id
+from modules.moodle import MoodleAdapter, course_id, assignment_id
 from api import IntervalScheduler
 from ._config import MoodleMonitorConfig
 from ._data_layer import *
@@ -81,7 +81,6 @@ class Scheduler:
                 self.__log.debug('Updating courses we are subscribed to...')
                 course_stream = self.__moodle.stream_enrolled_courses(
                     in_progress_only=self.__cfg.courses.load_inprogress_only,
-                    teacher_role_ids=[role_id(r) for r in self.__cfg.courses.teacher_role_ids],
                     batch_size=self.__cfg.courses.db_batch_size
                 )
                 async for chunk in aiobatch(course_stream, self.__cfg.courses.db_batch_size):
