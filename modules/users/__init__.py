@@ -1,4 +1,4 @@
-"""Поддерживает список пользователей системы."""
+"""Поддерживает список пользователей системы, а также механизм одноразовых кодов."""
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -15,17 +15,14 @@ provides = [UserRepository]
 
 
 async def lifetime(api: CoreAPI):
+    """Тело модуля."""
     log = logging.getLogger('modules.users')
     engine = await api(AsyncEngine)
     context.log = log
     context.bot = await api(Bot)
     context.dispatcher = await api(Dispatcher)
     context.repository = UserRepository(engine)
-
-    async def repository_provider() -> UserRepository:
-        return context.repository
-
-    api.register_api_provider(repository_provider, UserRepository)
+    api.register_api_provider(context.repository, UserRepository)
 
     async with engine.connect() as conn:
         await conn.run_sync(UserBase.metadata.create_all)
