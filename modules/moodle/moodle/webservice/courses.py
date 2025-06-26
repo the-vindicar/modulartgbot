@@ -1,3 +1,4 @@
+"""This submodule deals with retrieving course information."""
 from typing import Optional, Any, Collection, Union
 from enum import StrEnum
 from pydantic import BaseModel, PositiveInt
@@ -11,6 +12,7 @@ __all__ = [
 
 
 class CourseTimelineClassification(StrEnum):
+    """See core_course_get_enrolled_courses_by_timeline_classification()."""
     ALL_INCLUDING_HIDDEN = 'allincludinghidden'
     ALL = 'all'
     PAST = 'past'
@@ -42,6 +44,7 @@ class RPaginatedCourses(BaseModel):
 
 
 class CoursesMixin:
+    """Mixin providing methods for working with courses."""
     async def core_course_get_enrolled_courses_by_timeline_classification(
             self: WebServiceAdapter,
             classification: Union[str, CourseTimelineClassification],
@@ -53,6 +56,17 @@ class CoursesMixin:
             searchvalue: str = None,
             requiredfields: Collection[str] = None
     ) -> RPaginatedCourses:
+        """Retrieves courses we are enrolled in, with given position on the timeline.
+        :param classification: Which courses to retrieve (past, current, future, hidden, etc).
+        :param limit: Pagination - how many courses to retrieve.
+        :param offset: Pagination - how many courses to skip. See RPaginatedCourses.nextoffset.
+        :param sort: SQL sort string for results. Hopefully not vulnerable to injections.
+        :param customfieldname: If classification == 'customfield', specifies a name for a course field to filter by.
+        :param customfieldvalue: If classification == 'customfield', specifies a value for a course field to filter by.
+        :param searchvalue: If we want to filter courses via search as well.
+        :param requiredfields: Which fields to return about each course. Useful to reduce the bandwidth usage.
+        :returns: A page from the list of courses.
+        """
         return await self(
             'core_course_get_enrolled_courses_by_timeline_classification', dict(
                 classification=classification,

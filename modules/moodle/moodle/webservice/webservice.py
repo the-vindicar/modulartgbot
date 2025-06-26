@@ -1,5 +1,5 @@
+"""Contains classes that simplify working with Moodle Web API."""
 import typing as tp
-import warnings
 
 from pydantic import JsonValue
 
@@ -18,7 +18,9 @@ __all__ = ['MoodleFunctions']
 
 
 class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin):
-    """Этот класс служит для вызова функций Moodle Web API."""
+    """Moodle Web API wrapper class that provides methods with properly type-hinted parameters and returns.
+    If you need to call an API function that does not have a pre-defined method, use __call__() and provide
+    function name first. Optionally, provide a Pydantic model to validate the result against."""
     __slots__ = ('__owner', )
 
     def __init__(self, owner: 'Moodle'):
@@ -39,11 +41,12 @@ class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, Grad
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],
                        *, model: tp.Type[ModelType] = None
                        ) -> tp.Union[ModelType, JsonValue]:
-        """Вызываем указанную функцию Moodle Web API.
-        :param func: Имя функции, например, 'core_webservice_get_site_info'.
-        :param params: Аргументы, передаваемые функции.
-        :param model: Модель Pydantic, которой должен соответствовать ответ.
-        :returns: Ответ сервера, декодированный из JSON."""
+        """Calls a Moodle Web API function.
+        :param func: Function name, such as `core_webservice_get_site_info`.
+        :param params: Dictionary of arguments passed to the function. See .query() in :class:`Moodle`.
+        :param model: A Pydantic model used to validate the response. Can be omitted to receive simple decoded JSON.
+        :returns: Instance of the provided model. If no model is provided, a dict/list containing server's
+            JSON response."""
         params.update({
             'wsfunction': func,
             'wstoken': self.__owner.token,

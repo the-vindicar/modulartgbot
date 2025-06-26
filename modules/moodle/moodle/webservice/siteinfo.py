@@ -1,3 +1,4 @@
+"""This submodule deals with retrieving site/our account information."""
 from typing import Optional, Any
 from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
 from .common import *
@@ -50,5 +51,8 @@ class RSiteInfo(BaseModel):
 
 
 class SiteInfoMixin:
+    """Mixin providing methods for working with site info."""
     async def core_webservice_get_site_info(self: WebServiceAdapter) -> RSiteInfo:
+        """Retrieves information about the site and the user we're logged in as.
+        :returns: Site information."""
         return await self('core_webservice_get_site_info', {}, model=RSiteInfo)

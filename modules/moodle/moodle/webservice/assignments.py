@@ -1,3 +1,4 @@
+"""This submodule deals with retrieving assignments and submissions to them."""
 from typing import Optional, Collection, Literal
 from enum import StrEnum
 from datetime import datetime
@@ -17,6 +18,7 @@ __all__ = [
 
 
 class SubmissionStatus(StrEnum):
+    """Possible assignment submission status values."""
     NEW = 'new'
     DRAFT = 'draft'
     SUBMITTED = 'submitted'
@@ -24,6 +26,7 @@ class SubmissionStatus(StrEnum):
 
 
 class GradingStatus(StrEnum):
+    """Possible grading status values."""
     GRADED = 'graded'
     NOT_GRADED = 'notgraded'
 
@@ -151,6 +154,7 @@ class RAssignmentsGrades(BaseModel):
 
 
 class UngroupedWarning(StrEnum):
+    """How should we treat the situation where some users are not in groups?"""
     REQUIRED = 'warningrequired'
     OPTIONAL = 'warningoptional'
     NONE = ''
@@ -211,12 +215,18 @@ class RSubmissionStatus(BaseModel):
 
 
 class AssignMixin:
+    """Mixin providing methods for working with users."""
     async def mod_assign_get_assignments(
             self: WebServiceAdapter,
             courseids: Collection[int] = (),
             capabilities: Collection[str] = (),
             includenotenrolledcourses: bool = False
     ) -> RAssignments:
+        """Retrieves all assignments from the specified courses.
+        :param courseids: IDs of the courses we want to get assignments from.
+        :param capabilities: Only retrieve assignments, for which we have specified capabilities.
+        :param includenotenrolledcourses: If False, any courses we are not enrolled in will be dropped from the list.
+        :returns: List of assignments, grouped by course."""
         return await self(
             'mod_assign_get_assignments', dict(
                 courseids=courseids, capabilities=capabilities,
@@ -230,6 +240,12 @@ class AssignMixin:
             status: str = '',
             since: datetime | int = 0, before: datetime | int = 0
     ) -> RSubmissions:
+        """Retrieves submissions for the specified assignments.
+        :param assignmentids: IDs of the assignments we want to retrieve submissions for.
+        :param status: If not empty, only retrieve submissions with this status.
+        :param since: If not 0, only retrieve submissions sent at or after the specified timestamp.
+        :param before: If not 0, only retrieve submissions sent at or before the specified timestamp.
+        :returns: List of submissions, grouped by assignment."""
         return await self(
             'mod_assign_get_submissions', dict(
                 assignmentids=assignmentids, status=status, since=since, before=before
@@ -241,6 +257,10 @@ class AssignMixin:
             assignmentids: Collection[int],
             since: datetime | int = 0
     ) -> RAssignmentsGrades:
+        """Retrieves user grades for the given assignments.
+        :param assignmentids: IDs of the assignments we want to retrieve grades for.
+        :param since: If not 0, only retrieve grades created at or after the specified timestamp.
+        :returns: List of grades, grouped by assignment."""
         return await self(
             'mod_assign_get_grades', dict(
                 assignmentids=assignmentids, since=since
@@ -253,6 +273,11 @@ class AssignMixin:
             userid: int = 0,
             groupid: int | Literal[''] = 0
     ) -> RSubmissionStatus:
+        """Retrieves a single submission's status for the given assignment.
+        :param assignid: ID of the assignment.
+        :param userid: User that had sent/could have sent the submission.
+        :param groupid: Group that had sent/could have sent the submission, in case of group submission being enabled.
+        :returns: Submisison status information."""
         return await self(
             'mod_assign_get_submission_status', dict(
                 assignid=assignid, userid=userid, groupid=groupid

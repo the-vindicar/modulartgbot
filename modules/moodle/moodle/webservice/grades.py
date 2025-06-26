@@ -1,3 +1,4 @@
+"""This submodule deals with retrieving grades."""
 from typing import Optional, Any
 from pydantic import BaseModel, Field, ConfigDict, PositiveInt
 from .common import *
@@ -115,12 +116,20 @@ class RGradeItems(BaseModel):
 
 
 class GradesMixin:
+    """Mixin providing methods for working with grades."""
     async def gradereport_user_get_grades_table(
             self: WebServiceAdapter,
             courseid: int,
             userid: int = None,
             groupid: int = None
     ) -> RGradesTables:
+        """Get the user's report grades table for a course. If you just want to know the grades,
+        consider using gradereport_user_get_grade_items() instead.
+        :param courseid: ID of the course for which grades are retrieved.
+        :param userid: ID of the user for whom grades are retrieved. None means all users.
+        :param groupid: ID of the group for which grades are retrieved. None means all groups.
+        :returns: Grade report table.
+        """
         return await self('gradereport_user_get_grades_table', dict(
             courseid=courseid, userid=userid, groupid=groupid
         ), model=RGradesTables)
@@ -131,6 +140,12 @@ class GradesMixin:
             userid: int = None,
             groupid: int = None
     ) -> RGradeItems:
+        """Returns the complete list of grade items for users in a course.
+        :param courseid: ID of the course for which grades are retrieved.
+        :param userid: ID of the user for whom grades are retrieved. None means all users.
+        :param groupid: ID of the group for which grades are retrieved. None means all groups.
+        :returns: List of grades.
+        """
         return await self('gradereport_user_get_grade_items', dict(
             courseid=courseid, userid=userid, groupid=groupid
         ), model=RGradeItems)

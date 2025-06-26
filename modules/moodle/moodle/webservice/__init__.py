@@ -1,3 +1,4 @@
+"""A submodule dealing with Webservice API calls."""
 from .common import *
 from .siteinfo import *
 from .courses import *

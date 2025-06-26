@@ -1,3 +1,4 @@
+"""This submodule deals with retrieving users, be that in general or course participants."""
 from typing import Optional, Any, Collection
 from enum import StrEnum
 
@@ -85,6 +86,7 @@ class RUserDescription(_RBaseUser):
 
 
 class UserByField(StrEnum):
+    """Fields that can be used to search users on Moodle server."""
     ID = 'id'
     ID_NUMBER = 'idnumber'
     USERNAME = 'username'
@@ -92,11 +94,17 @@ class UserByField(StrEnum):
 
 
 class UsersMixin:
+    """Mixin providing methods for working with users."""
     async def core_enrol_get_enrolled_users(
             self: WebServiceAdapter,
             courseid: int,
             options: Collection[Option]
     ) -> list[REnrolledUser]:
+        """Retrieves all users, enrolled into the given course.
+        :param courseid: ID of the course in question.
+        :param options: Search options: withcapability, groupid, onlyactive, onlysuspended, userfields,
+            limitfrom, limitnumber, sortby, sortdirection.
+        :returns: List of enrolled users."""
         return await self(
             'core_enrol_get_enrolled_users', dict(
                 courseid=courseid, options=options
@@ -107,6 +115,10 @@ class UsersMixin:
             field: UserByField | str,
             values: Collection[int | str]
     ) -> list[RUserDescription]:
+        """Find users by given filter.
+        :param field: Field name.
+        :param values: Set of values to match.
+        :returns: List of users."""
         return await self(
             'core_user_get_users_by_field', dict(
                 field=field, values=values
