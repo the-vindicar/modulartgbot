@@ -15,7 +15,7 @@ class KSUTimetableAdapter:
         self.base_url = 'https://eios-po.kosgos.ru/'
         self.session = aiohttp.ClientSession()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> t.Self:
         await self.session.__aenter__()
         return self
 

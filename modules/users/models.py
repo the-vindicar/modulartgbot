@@ -3,16 +3,17 @@ import typing as t
 from enum import StrEnum
 import datetime
 import random
+import re
 
 from api import DBModel
-from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey
+from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
 from sqlalchemy.dialects.postgresql import insert as upsert
 
 
-__all__ = ['UserBase', 'SiteUser', 'UserRoles', 'UserRepository']
+__all__ = ['UserBase', 'SiteUser', 'NameStyle', 'UserRoles', 'UserRepository']
 
 
 class UserRoles(StrEnum):
@@ -21,6 +22,15 @@ class UserRoles(StrEnum):
     UNVERIFIED = 'unverified'
     VERIFIED = 'verified'
     SITE_ADMIN = 'siteadmin'
+
+
+class NameStyle(StrEnum):
+    """Стили записи реального имени пользователя."""
+    LastFP = 'Last F P'
+    FPLast = 'F P Last'
+    LastFirstPatronym = 'Last First Patronym'
+    FirstPatronymLast = 'First Patronym Last'
+    FirstPatronym = 'First Patronym'
 
 
 class UserBase(DBModel):
@@ -38,30 +48,54 @@ class SiteUser(UserBase):
     registered: Mapped[datetime.datetime] = mapped_column(nullable=False, server_default='NOW()')
     fields: Mapped[JSON] = mapped_column(server_default='{}')
 
-    @property
-    def fullname_last(self) -> str:
-        """Имя Отчество Фамилия"""
-        return ' '.join(filter(None, (self.firstname, self.patronym, self.lastname)))
+    def get_name(self, style: NameStyle) -> str:
+        """Возвращает имя в указанном стиле."""
+        if style == NameStyle.FirstPatronymLast:
+            return ' '.join(filter(None, (self.firstname, self.patronym, self.lastname)))
+        elif style == NameStyle.LastFirstPatronym:
+            return ' '.join(filter(None, (self.lastname, self.firstname, self.patronym)))
+        elif style == NameStyle.FPLast:
+            result = ''
+            if self.firstname:
+                result += self.firstname[0] + '. '
+                if self.patronym:
+                    result += self.patronym[0] + '. '
+            result += self.lastname
+            return result
+        elif style == NameStyle.LastFP:
+            result = self.lastname
+            if self.firstname:
+                result += f' {self.firstname[0]}.'
+                if self.patronym:
+                    result += f' {self.patronym[0]}.'
+            return result
+        elif style == NameStyle.FirstPatronym:
+            result = ' '.join(filter(None, (self.firstname, self.patronym))) or self.lastname
+            return result
+        else:
+            raise ValueError(f'{style!r} is not a correct NameStyle')
 
-    @property
-    def shortname_last(self) -> str:
-        """И. О. Фамилия"""
-        return '. '.join(filter(None, (self.firstname[:1], self.patronym[:1], self.lastname)))
+    _SPLIT_RE = {
+        NameStyle.LastFirstPatronym: r'^\s*(?P<last>\S+)\s+(?P<first>\S+)\s+(?P<patronym>.+)\s*$',
+        NameStyle.FirstPatronymLast: r'^\s*(?P<first>\S+)\s+(?P<patronym>.+)\s+(?P<last>\S+)\s*$',
+        NameStyle.LastFP: r'^\s*(?P<last>\S+)\s+(?P<first>\S)\.\s*(?:(?P<patronym>\S)\.)?\s*$',
+        NameStyle.FPLast: r'^\s*(?P<first>\S)\.\s*(?:(?P<patronym>\S)\.)?\s*(?P<last>\S+)\s*$',
+        NameStyle.FirstPatronym: r'^\s*(?P<first>\S+)\s+(?P<patronym>.+?)\s*$',
+    }
 
-    @property
-    def fullname_first(self) -> str:
-        """Фамилия Имя Отчество"""
-        return ' '.join(filter(None, (self.lastname, self.firstname, self.patronym)))
-
-    @property
-    def shortname_first(self) -> str:
-        """Фамилия И.О."""
-        return '. '.join(filter(None, (self.lastname, self.firstname[:1], self.patronym[:1])))
-
-    @property
-    def partname(self) -> str:
-        """Имя Отчество"""
-        return ' '.join(filter(None, (self.firstname, self.patronym)))
+    @classmethod
+    def split_name(cls, name: str, style: NameStyle) -> t.Optional[tuple[str, str, str]]:
+        """Разбивает строку с именем пользователя на три части: имя, отчество, фамилия.
+        Вместо имени и отчества могут быть инициалы.
+        :param name: Строка с именем в указанном стиле.
+        :param style: Ожидаемый стиль имени.
+        :returns: Кортеж из трёх строк: имя, отчество, фамилия. None, если строка не соответствует шаблону."""
+        pattern = cls._SPLIT_RE[style]
+        match = re.match(pattern, name)
+        if not match:
+            return None
+        parts = match.groupdict()
+        return parts.get('first', ''), parts.get('patronym', ''), parts.get('last', '')
 
 
 class OneTimeCode(UserBase):
@@ -81,6 +115,13 @@ class UserRepository:
     def __init__(self, engine: AsyncEngine):
         self.__sessionmaker = async_sessionmaker(bind=engine, class_=AsyncSession,
                                                  autoflush=True, expire_on_commit=False)
+
+    async def create_tables(self) -> None:
+        """Создаёт таблицы, относящиеся к пользователям системы."""
+        engine: AsyncEngine = self.__sessionmaker.kw['bind']
+        async with engine.connect() as conn:
+            await conn.run_sync(UserBase.metadata.create_all)
+            await conn.commit()
 
     async def store(self, user: SiteUser) -> None:
         """Сохраняет сведения о пользователе (новом или существующем).
@@ -125,6 +166,39 @@ class UserRepository:
         :returns: Пользователь, или None, если такого ID нет."""
         async with self.__sessionmaker() as session:
             return await session.get(SiteUser, ident=userid)
+
+    async def get_by_name(self, name: str, style: NameStyle) -> list[SiteUser]:
+        """Ищет пользователей по имени, заданном в указанном стиле.
+        :param name: Образец имени, например, "Иван Иванович Иванов" или "Петров П.П.".
+        :param style: Стиль имени, например, NameStyle.FirstPatronymLast или NameStyle.LastFP.
+        :returns: Список подходящих под условия пользователей."""
+        stmt = select(SiteUser)
+        parts = SiteUser.split_name(name, style)
+        if not parts:
+            return []
+        first, patronym, last = parts[0].lower(), parts[1].lower(), parts[2].lower()
+        if style in (NameStyle.LastFirstPatronym, NameStyle.FirstPatronymLast):
+            stmt = stmt.where(
+                func.lower(SiteUser.lastname) == last,
+                func.lower(SiteUser.firstname) == first,
+                func.lower(SiteUser.patronym) == patronym,
+            )
+        elif style in (NameStyle.LastFP, NameStyle.FPLast):
+            stmt = stmt.where(
+                func.lower(SiteUser.lastname) == last,
+                func.lower(SiteUser.firstname).like(f'{first}%'),
+                func.lower(SiteUser.patronym).like(f'{patronym}%'),
+            )
+        elif style == NameStyle.FirstPatronym:
+            stmt = stmt.where(
+                func.lower(SiteUser.firstname) == first,
+                func.lower(SiteUser.patronym) == patronym,
+            )
+        else:
+            raise ValueError(f'{style!r} is not a correct NameStyle')
+        async with self.__sessionmaker() as session:
+            result = await session.scalars(stmt)
+            return list(result.all())
 
     async def get_role_by_tg_id(self, tgid: int) -> UserRoles:
         """Возвращает роль пользователя по его Telegram ID.

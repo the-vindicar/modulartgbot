@@ -9,7 +9,7 @@ from aiogram.fsm.storage.memory import StorageKey
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command, CommandStart, or_f
 
-from .models import SiteUser, UserRoles, UserRepository
+from .models import SiteUser, UserRoles, UserRepository, NameStyle
 
 
 __all__ = [
@@ -74,7 +74,7 @@ async def on_start_command(msg: Message, state: FSMContext):
     user_id = msg.from_user.id
     user = await context.repository.get_by_tgid(user_id)
     if user is not None:
-        text = f'''Доброе время суток, {user.partname}.'''
+        text = f'''Доброе время суток, {user.get_name(NameStyle.FirstPatronym)}.'''
         if user.role == UserRoles.UNVERIFIED:
             text += '\r\nВаша учётная запись ещё не подтверждена.'
         await msg.answer(text, parse_mode='markdown')
@@ -116,16 +116,16 @@ async def on_name_entered(msg: Message, state: FSMContext):
     admin = await context.repository.get_admin()
     if admin is None:
         context.log.warning('No site admin found! Automatically accepting new user %s (%s) as site admin.',
-                            u.fullname_last, url)
+                            u.get_name(NameStyle.LastFirstPatronym), url)
         u.role = UserRoles.SITE_ADMIN
         await context.repository.store(u)
         await state.set_state(None)
         await msg.answer('Ого! Похоже, вы теперь админ...')
         return
     context.log.debug('Awaiting approval for user %s ( %s ) by the site admin.',
-                      u.fullname_last, url)
+                      u.get_name(NameStyle.LastFirstPatronym), url)
     await context.repository.store(u)
-    text = f'Пользователь ожидает подтверждения: {u.fullname_last} ( {user["url"]} )'
+    text = f'Пользователь ожидает подтверждения: {u.get_name(NameStyle.LastFirstPatronym)} ( {user["url"]} )'
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text='\u2795 Подтвердить', callback_data=f'register.confirm:{u.tgid}'),
@@ -184,15 +184,16 @@ async def admin_list_unverified(msg: Message):
     total = 0
     lines = []
     keyboard = InlineKeyboardMarkup(inline_keyboard=[])
-    async for user in context.repository.get_all_with_role(UserRoles.UNVERIFIED):
+    async for user in await context.repository.get_all_with_role(UserRoles.UNVERIFIED):
         total += 1
-        lines.append(f'[#{user.id}] {user.fullname_first}: {user.registered:%Y-%m-%d %H:%M}; tg://user?id={user.tgid}')
+        lines.append(f'[#{user.id}] {user.get_name(NameStyle.LastFirstPatronym)}: '
+                     f'{user.registered:%Y-%m-%d %H:%M}; tg://user?id={user.tgid}')
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=f'\u2795 Подтвердить {user.shortname_first}',
+            InlineKeyboardButton(text=f'\u2795 Подтвердить {user.get_name(NameStyle.LastFP)}',
                                  callback_data=f'register.confirm:{user.tgid}'),
-            InlineKeyboardButton(text=f'\u21a9 Сбросить {user.shortname_first}',
+            InlineKeyboardButton(text=f'\u21a9 Сбросить {user.get_name(NameStyle.LastFP)}',
                                  callback_data=f'register.reset:{user.tgid}'),
-            InlineKeyboardButton(text=f'\u274c Заблокировать {user.shortname_first}',
+            InlineKeyboardButton(text=f'\u274c Заблокировать {user.get_name(NameStyle.LastFP)}',
                                  callback_data=f'register.block:{user.tgid}'),
         ])
     if total == 0:

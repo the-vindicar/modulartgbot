@@ -5,11 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from aiogram import Bot, Dispatcher
 
 from api import CoreAPI
-from .models import UserBase, SiteUser, UserRepository, UserRoles
+from .models import UserBase, SiteUser, UserRepository, UserRoles, NameStyle
 from .tg import context, router, is_registered, is_site_admin
 
 
-__all__ = ['SiteUser', 'UserRepository', 'UserRoles', 'is_registered', 'is_site_admin']
+__all__ = ['SiteUser', 'UserRepository', 'UserRoles', 'NameStyle', 'is_registered', 'is_site_admin']
 requires = [AsyncEngine, Bot, Dispatcher]
 provides = [UserRepository]
 
@@ -22,8 +22,7 @@ async def lifetime(api: CoreAPI):
     context.bot = await api(Bot)
     context.dispatcher = await api(Dispatcher)
     context.repository = UserRepository(engine)
+    await context.repository.create_tables()
     api.register_api_provider(context.repository, UserRepository)
 
-    async with engine.connect() as conn:
-        await conn.run_sync(UserBase.metadata.create_all)
     yield

@@ -1,18 +1,18 @@
+"""Реализует web-часть монитора расписаний."""
 import asyncio
 import dataclasses
 
-import asyncpg
 import quart
 
 from ._classes import *
-from ._data_layer import *
+from .models import TimetableRepository
 
 
 @dataclasses.dataclass(slots=True)
 class Context:
     """Глобальные переменные для взаимодействия между фоновой задачей и веб-обработчиками."""
     config: TimetableMonitorConfig = dataclasses.field(default_factory=TimetableMonitorConfig)
-    connection: asyncpg.Connection = None
+    ttrepo: TimetableRepository = None
     force_update: asyncio.Event = asyncio.Event()  # при установке принудительно запускает обновление расписания
 
 
@@ -26,17 +26,16 @@ __all__ = ['blueprint', 'web_context']
 
 @blueprint.get('/')
 async def handle_root():
+    """Корень раздела расписаний."""
     return quart.redirect(quart.url_for('.handle_teachers'))
 
 
 @blueprint.get('/teachers')
 async def handle_teachers():
+    """Таблица расписаний преподавателей."""
     teachers = list(web_context.config.teachers.keys())
-    timetables: dict[str, Timetable] = {}
-    async with web_context.connection.transaction(isolation='read_committed', readonly=True):
-        for t in teachers:
-            timetables[t] = await load_teacher_timetable(web_context.connection, t)
-        updates = await load_update_timestamps(web_context.connection)
+    timetables: dict[str, Timetable] = await web_context.ttrepo.load_teachers_timetables(teachers)
+    updates = await web_context.ttrepo.load_update_timestamps()
     update_times = [
         (name,
          f'Обновлено {updates[name]:%d %B %Y}' if name in updates else None)
@@ -64,11 +63,9 @@ async def handle_teachers():
 
 @blueprint.get('/rooms')
 async def handle_rooms():
+    """Таблица расписаний аудиторий."""
     rooms = list(web_context.config.rooms)
-    timetables: dict[str, Timetable] = {}
-    async with web_context.connection.transaction(isolation='read_committed', readonly=True):
-        for r in rooms:
-            timetables[r] = await load_room_timetable(web_context.connection, r)
+    timetables: dict[str, Timetable] = await web_context.ttrepo.load_rooms_timetables(rooms)
     days = []
     for iday, day in enumerate(Timetable.DAYS):
         periods = []
