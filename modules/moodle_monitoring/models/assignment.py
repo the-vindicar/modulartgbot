@@ -43,7 +43,7 @@ class MoodleSubmission(MoodleBase):
 
 class MoodleSubmittedFile(MoodleBase):
     __tablename__ = 'MoodleSubmittedFiles'
-    id: Mapped[int] = mapped_column(Sequence('MoodleSubmittedFiles_id'), nullable=False,
+    id: Mapped[int] = mapped_column(Sequence('MoodleSubmittedFiles_id', cycle=True), nullable=False,
                                     comment='Уникальный номер файла (не ID в Moodle)')
     submission_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleSubmission.id, ondelete='cascade'),
