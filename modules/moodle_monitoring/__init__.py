@@ -7,7 +7,7 @@ from api import CoreAPI, background_task
 from modules.moodle import MoodleAdapter
 from ._config import MoodleMonitorConfig
 from ._scheduler import Scheduler
-from .datalayer import *
+from .models import *
 
 
 __all__ = [

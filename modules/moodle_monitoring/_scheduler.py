@@ -8,7 +8,7 @@ import logging
 from modules.moodle import MoodleAdapter, course_id, assignment_id
 from api import IntervalScheduler, aiobatch
 from ._config import MoodleMonitorConfig
-from .datalayer import MoodleRepository
+from .models import MoodleRepository
 
 
 _T = t.TypeVar('_T')
