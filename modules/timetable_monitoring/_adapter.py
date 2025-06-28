@@ -1,3 +1,4 @@
+"""Обеспечивает загрузку расписания с сайта КГУ."""
 import typing as t
 import datetime
 import re
@@ -11,6 +12,7 @@ __all__ = ['KSUTimetableAdapter']
 
 
 class KSUTimetableAdapter:
+    """Обеспечивает загрузку расписания с сайта КГУ."""
     def __init__(self):
         self.base_url = 'https://eios-po.kosgos.ru/'
         self.session = aiohttp.ClientSession()
@@ -23,6 +25,9 @@ class KSUTimetableAdapter:
         await self.session.__aexit__(exc_type, exc_val, exc_tb)
 
     async def download_teacher_ids(self, teacher_names: list[str]) -> dict[str, int]:
+        """Загружает используемые на сайте ID указанных преподавателей.
+        :param teacher_names: Список имён преподавателей в формате Фамилия И.О.
+        :returns: Набор пар "Фамилия И.О. - ID"."""
         result = {}
         now = datetime.datetime.now()
         year = now.year if now.month > 7 else now.year - 1
@@ -47,11 +52,16 @@ class KSUTimetableAdapter:
         return result
 
     async def download_room_ids(self) -> dict[str, int]:
+        """Загружает список ID доступных аудиторий.
+        :returns: Набор пар "номер аудитории - ID"."""
         async with self.session.get(f'{self.base_url}api/raspAudlist') as r:
             reply = await r.json()
         return {item['name']: int(item['id']) for item in reply['data']}
 
     async def download_teacher_timetable(self, teacher_id: int) -> Timetable:
+        """Загружает расписание указанного преподавателя на эту и следующую неделю.
+        :param teacher_id: ID преподавателя на сайте.
+        :returns: Расписание для этого преподавателя."""
         start, end, desired_semester = self._get_date_range()
         url = f'{self.base_url}api/Rasp?idTeacher={teacher_id}&sdate={start:%Y-%m-%d}&edate={end:%Y-%m-%d}'
         async with self.session.get(url) as r:
@@ -61,6 +71,9 @@ class KSUTimetableAdapter:
         return timetable
 
     async def download_room_timetable(self, room_id: int) -> Timetable:
+        """Загружает расписание указанной аудитории на эту и следующую неделю.
+        :param room_id: ID аудитории на сайте.
+        :returns: Расписание для этой аудитории."""
         start, end, desired_semester = self._get_date_range()
         url = f'{self.base_url}api/Rasp?idAudLine={room_id}&sdate={start:%Y-%m-%d}&edate={end:%Y-%m-%d}'
         async with self.session.get(url) as r:
@@ -71,6 +84,7 @@ class KSUTimetableAdapter:
 
     @staticmethod
     def _get_date_range() -> tuple[datetime.date, datetime.date, int]:
+        """Определяет диапазон дат и семестр, на которые нужно загрузить расписание."""
         now: datetime.date = datetime.datetime.now().date()
         if now.weekday() == 6:
             now += datetime.timedelta(days=1)
@@ -81,6 +95,7 @@ class KSUTimetableAdapter:
 
     @staticmethod
     def _analyze_timetable(data: list[dict[str, t.Any]], desired_semester) -> Timetable:
+        """Анализирует отданное сайтом расписание, и формирует объект расписания на его основе."""
         timetable = Timetable()
         for item in data:
             semester_code = int(item['код_Семестра'])

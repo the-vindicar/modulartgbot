@@ -1,3 +1,4 @@
+"""Содержит датаклассы, описывающие расписание занятий, а также вспомогательные датаклассы."""
 import typing as t
 import dataclasses
 
@@ -11,7 +12,8 @@ __all__ = [
 
 @dataclasses.dataclass
 class TimetableMonitorConfig:
-    update_time_utc: str = "19:00:00"
+    """Конфигурация модуля мониторинга расписания."""
+    update_time_utc: str = "15:00:00"
     telegram_delay: float = 1
     teachers: dict[str, str] = dataclasses.field(default_factory=dict)
     rooms: list[str] = dataclasses.field(default_factory=list)
@@ -25,6 +27,7 @@ class TimetableMonitorConfig:
 
 @dataclasses.dataclass(slots=True, eq=True)
 class Lesson:
+    """Одно занятие (пара)."""
     room: str
     teacher: str
     course: str
@@ -34,11 +37,14 @@ class Lesson:
 
 @dataclasses.dataclass(slots=True, eq=True)
 class TimetableSlot:
+    """Слот в расписании. Может содержать разные занятия для чётной и нечётной недель."""
     above: t.Optional[Lesson] = None
     below: t.Optional[Lesson] = None
     both: t.Optional[Lesson] = None
 
     def replace_course_names(self, renamings: dict[str, t.Optional[str]]) -> 'TimetableSlot':
+        """Переименовывает названия дисциплин для занятий в слоте, и возвращает новый слот.
+        :param renamings: Набор пар "старое название - новое название"."""
         x = {}
         for p in ('above', 'below', 'both'):
             part: Lesson = getattr(self, p)
@@ -51,6 +57,7 @@ class TimetableSlot:
 
 @dataclasses.dataclass(slots=True)
 class TimetableSlotChange:
+    """Описание одного изменения в расписании занятий."""
     week: str
     day: str
     period: int
@@ -60,6 +67,7 @@ class TimetableSlotChange:
 
 @dataclasses.dataclass()
 class Timetable:
+    """Расписание занятий."""
     DAYS: t.ClassVar[list[str]] = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота']
     PERIODS: t.ClassVar[list[str]] = [
         '8:30-10:00', '10:10-11:40', '11:50-13:20', '14:00-15:30', '15:40-17:10', '17:20-18:50', '19:00-20:30'
@@ -74,6 +82,7 @@ class Timetable:
     ])
 
     def iterate(self) -> t.Iterable[tuple[int, int, int, Lesson]]:
+        """Перебирает все занятия в расписании, сообщая день, номер пары, неделю и сведения о занятии."""
         for day, periods in enumerate(self.slots):
             for period, slot in enumerate(periods):
                 if slot.above:
@@ -84,6 +93,7 @@ class Timetable:
                     yield day, period, 0, slot.both
 
     def get_all_courses(self) -> set[str]:
+        """Возвращает множество названий курсов в расписании."""
         courses = set()
         for lessons in self.slots:
             for slot in lessons:
@@ -96,13 +106,16 @@ class Timetable:
         return courses
 
     def changes_from(self, old: 'Timetable') -> list[TimetableSlotChange]:
+        """Сравнивает это расписание с указанным, и возвращает список изменений.
+        :param old: Предыдущая версия расписания.
+        :returns: Список изменений. Пуст, если оба расписания совпадают."""
         changes = []
-        WEEKS: list[str] = ['над чертой', 'под чертой', 'обе недели']
+        WEEKS: list[str] = ['обе недели', 'над чертой', 'под чертой']
         for day, daydata in enumerate(self.slots):
             for period, slot in enumerate(daydata):
                 old_slot = old.slots[day][period]
                 new_slot = self.slots[day][period]
-                for i, part in enumerate(('above', 'below', 'both')):
+                for i, part in enumerate(('both', 'above', 'below')):
                     old_part = getattr(old_slot, part)
                     new_part = getattr(new_slot, part)
                     if old_part != new_part:
@@ -117,14 +130,18 @@ class Timetable:
 
     @staticmethod
     def fix_groups(groups: str) -> str:
-        splits: list[tuple[str, ...]] = [tuple(g.rsplit('-', 1)) for g in groups.split(', ')]
+        """Преобразует строку с перечислением групп.
+        :param groups: Строка вида "21-ИСбо-1, 21-ИСбо-2, 21-ИСбо-4, 21-ИИбо-1".
+        :returns: Строка вида "21-ИСбо-1,2,4; 21-ИИбо-1".
+        """
+        splits: list[tuple[str, str, str]] = [g.rpartition('-') for g in groups.split(', ')]
         splits.sort(key=lambda item: item[0])
         result = ''
         last_prefix = None
-        for prefix, number in splits:
+        for prefix, _, number in splits:
             if prefix != last_prefix:
                 if last_prefix is not None:
-                    result += ', '
+                    result += '; '
                 result += f'{prefix}-{number}'
                 last_prefix = prefix
             else:
