@@ -1,21 +1,27 @@
 """Реализует простую регистрацию через Telegram с подтверждением учётки админом."""
+import typing as t
+from collections import defaultdict
 import dataclasses
 import logging
+import re
 
 from aiogram import Router, Dispatcher, Bot
+from aiogram.dispatcher.event.handler import HandlerObject, FilterObject
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import StorageKey
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.filters import Command, CommandStart, or_f
+from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from aiogram.filters import Command, CommandStart, or_f, logic
 
 from .models import SiteUser, UserRoles, UserRepository, NameStyle
 
 
 __all__ = [
     'context', 'router',
-    'is_registered', 'is_site_admin'
+    'is_registered', 'is_site_admin',
+    'prepare_command_list'
 ]
+CommandsInfo: t.TypeAlias = dict[UserRoles, list[BotCommand]]
 
 
 @dataclasses.dataclass
@@ -25,6 +31,13 @@ class RegistrationContext:
     bot: Bot = None
     dispatcher: Dispatcher = None
     log: logging.Logger = None
+    commands: CommandsInfo = dataclasses.field(default_factory=dict)
+
+    async def get_state_for_user(self, user_id: int) -> t.Optional[str]:
+        """Принудительно читает состояние пользователя. Может быть использовано вне контекста обработки сообщения."""
+        key = StorageKey(bot_id=self.bot.id, chat_id=user_id, user_id=user_id,
+                         thread_id=None, business_connection_id=None)
+        return await self.dispatcher.storage.get_state(key)
 
     async def set_state_for_user(self, user_id: int, state: str | State | None, **data_updates) -> None:
         """Принудительно задаёт состояние пользователю. Может быть использовано вне контекста обработки сообщения."""
@@ -214,6 +227,76 @@ async def admin_list_unverified(msg: Message):
 # endregion
 
 
-# region Вход на сайт
+# region Справка о командах
 
+def all_message_handlers(dispatcher: Dispatcher) -> t.Iterable[HandlerObject]:
+    """Перечисляет все обработчики сообщений, прямо или опосредованно зарегистрированные в диспетчере бота."""
+    for r in dispatcher.chain_head:
+        yield from r.message.handlers
+
+
+def all_filters(filters: t.Iterable[FilterObject]) -> t.Iterable[FilterObject]:
+    """Распаковывает логические конструкции из фильтров, получая цепочку базовых фильтров."""
+    for f in filters:
+        if isinstance(f, (logic._OrFilter, logic._AndFilter)):  # noqa
+            yield from all_filters(f.targets)
+        elif isinstance(f, logic._InvertFilter):  # noqa
+            yield from all_filters((f.target,))
+        else:
+            yield f
+
+
+def prepare_command_list(dispatcher: Dispatcher) -> CommandsInfo:
+    """Составляем список команд в диспетчере, получаем их описания из docstring, и раскидываем их по ролям."""
+    commands: CommandsInfo = defaultdict(list)
+    for h in all_message_handlers(dispatcher):  # команды - это всегда сообщения
+        filters = list(all_filters(h.filters))
+        if any(isinstance(f, State) for f in filters):
+            continue  # игнорируем команды, требующие определённого состояния FSM
+        handler_commands = [f for f in filters if isinstance(f, Command)]
+        if handler_commands:
+            if is_site_admin in filters:
+                roles = UserRoles.SITE_ADMIN,
+            elif is_registered in filters:
+                roles = UserRoles.SITE_ADMIN, UserRoles.VERIFIED
+            else:
+                roles = UserRoles.SITE_ADMIN, UserRoles.VERIFIED, UserRoles.UNVERIFIED
+            docstring = getattr(h.callback, '__doc__', 'Нет информации.')
+            for cmd in handler_commands:
+                for cmd_pattern in cmd.commands:
+                    if isinstance(cmd_pattern, BotCommand):
+                        info = BotCommand(command=f'{cmd_pattern.command}',
+                                          description=cmd_pattern.description or docstring)
+                    elif isinstance(cmd_pattern, re.Pattern):
+                        continue
+                        # info = BotCommand(command=f'{cmd_pattern.pattern}', description=docstring)
+                    else:
+                        info = BotCommand(command=f'{cmd_pattern}', description=docstring)
+                    for role in roles:
+                        commands[role].append(info)
+    for role, cmds in commands.items():
+        startcmd, helpcmd = None, None
+        for i in range(len(cmds)-1, -1, -1):
+            if cmds[i][0] == 'start':
+                startcmd = cmds.pop(i)
+            elif cmds[i][0] == 'help':
+                helpcmd = cmds.pop(i)
+        cmds.sort(key=lambda item: item[0])
+        if startcmd:
+            cmds.insert(0, startcmd)
+        if helpcmd:
+            cmds.insert(0, helpcmd)
+    return commands
+
+
+@router.message(Command('help'))
+async def on_help_command(msg: Message):
+    """Показывает справку по доступным командам."""
+    role = await context.repository.get_role_by_tg_id(msg.from_user.id)
+    text = [
+        'Доступные вам команды:'
+    ]
+    for cmd, cmdhelp in context.commands[role]:
+        text.append(f'/{cmd} - {cmdhelp}')
+    await msg.reply('\r\n'.join(text))
 # endregion

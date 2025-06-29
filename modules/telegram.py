@@ -23,11 +23,13 @@ provides = [aiogram.Dispatcher, aiogram.Bot]
 
 @dataclasses.dataclass
 class TGBotConfig:
+    """Настройки телеграм-бота"""
     bot_token: str
     temp_storage: bool = False
 
 
 class PostgreStorage(BaseStorage):
+    """Stores aiogram FSM states for users in a PostgreSQL database, using SQLAlchemy engine."""
     def __init__(self, conn: AsyncConnection, table: str = 'AiogramFSMStorage', builder: KeyBuilder = None):
         self.__conn = conn
         metadata = MetaData()
@@ -43,6 +45,7 @@ class PostgreStorage(BaseStorage):
 
     @property
     def table(self) -> Table:
+        """Returns SQLAlchemy table information."""
         return self.__table
 
     async def set_state(self, key: StorageKey, state: StateType = None) -> None:
@@ -80,6 +83,7 @@ class PostgreStorage(BaseStorage):
 
 
 async def lifetime(api: CoreAPI):
+    """Тело модуля."""
     log = logging.getLogger('modules.telegram')
     log.info('Preparing telegram bot...')
     bot_cfg = await api.config.load('telegram', TGBotConfig)
@@ -96,15 +100,8 @@ async def lifetime(api: CoreAPI):
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
     bot = aiogram.Bot(token=bot_cfg.bot_token)
-
-    async def bot_provider():
-        return bot
-
-    async def dispatcher_provider():
-        return tgdispatcher
-
-    api.register_api_provider(bot_provider, aiogram.Bot)
-    api.register_api_provider(dispatcher_provider, aiogram.Dispatcher)
+    api.register_api_provider(bot, aiogram.Bot)
+    api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')
     try:
         # ДА ЯПОНСКИЙ ГОРОДОВОЙ! aiogram пожирает сигналы, не позволяя другим частям программы среагировать на них,
