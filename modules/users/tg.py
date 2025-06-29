@@ -20,12 +20,14 @@ __all__ = [
 
 @dataclasses.dataclass
 class RegistrationContext:
+    """Зависимости, требуемые для реализации команд бота."""
     repository: UserRepository = None
     bot: Bot = None
     dispatcher: Dispatcher = None
     log: logging.Logger = None
 
     async def set_state_for_user(self, user_id: int, state: str | State | None, **data_updates) -> None:
+        """Принудительно задаёт состояние пользователю. Может быть использовано вне контекста обработки сообщения."""
         key = StorageKey(bot_id=self.bot.id, chat_id=user_id, user_id=user_id,
                          thread_id=None, business_connection_id=None)
         await self.dispatcher.storage.set_state(key, state)
@@ -38,6 +40,7 @@ router: Router = Router(name='users')
 
 
 class UserRegistrationStates(StatesGroup):
+    """Состояния при регистрации пользователя."""
     awaiting_name = State()
     awaiting_confirmation = State()
     blocked = State()
@@ -89,6 +92,7 @@ async def on_start_command(msg: Message, state: FSMContext):
         context.log.debug('User %d attempting registration.', msg.from_user.id)
 
 
+# region Регистрация и подтверждение пользователя
 @router.callback_query(
     or_f(UserRegistrationStates.awaiting_confirmation, UserRegistrationStates.awaiting_name),
     lambda cb: cb.data.startswith('register.cancel.'))
@@ -101,6 +105,7 @@ async def user_cancel_button_handler(query: CallbackQuery, state: FSMContext):
 
 @router.message(UserRegistrationStates.awaiting_name)
 async def on_name_entered(msg: Message, state: FSMContext):
+    """Обрабатывает ввод имени после регистрации."""
     text = msg.text.strip()
     url = msg.from_user.url
     parts = [word.strip() for word in text.split('\n')] if '\n' in text else text.split()
@@ -139,6 +144,7 @@ async def on_name_entered(msg: Message, state: FSMContext):
 
 @router.callback_query(is_site_admin, lambda cb: cb.data.startswith('register.confirm:'))
 async def admin_confirm_button_handler(query: CallbackQuery):
+    """Администратор подтвердил регистрацию пользователя."""
     user_id = int(query.data[len('register.confirm:'):])
     user = await context.repository.get_by_tgid(user_id)
     if user is None or user.role != UserRoles.UNVERIFIED:
@@ -152,7 +158,8 @@ async def admin_confirm_button_handler(query: CallbackQuery):
 
 
 @router.callback_query(is_site_admin, lambda cb: cb.data.startswith('register.reset:'))
-async def admin_confirm_button_handler(query: CallbackQuery):
+async def admin_reset_button_handler(query: CallbackQuery):
+    """Администратор сбросил регистрацию пользователя."""
     user_id = int(query.data[len('register.reset:'):])
     user = await context.repository.get_by_tgid(user_id)
     if user is None or user.role != UserRoles.UNVERIFIED:
@@ -166,6 +173,7 @@ async def admin_confirm_button_handler(query: CallbackQuery):
 
 @router.callback_query(is_site_admin, lambda cb: cb.data.startswith('register.block:'))
 async def admin_block_button_handler(query: CallbackQuery):
+    """Администратор отменил регистрацию пользователя и заблокировал его."""
     user_id = int(query.data[len('register.block:'):])
     user = await context.repository.get_by_tgid(user_id)
     if user is None or user.role != UserRoles.UNVERIFIED:
@@ -203,3 +211,9 @@ async def admin_list_unverified(msg: Message):
         )
     else:
         await context.bot.send_message(msg.from_user.id, '\r\n'.join(lines), reply_markup=keyboard)
+# endregion
+
+
+# region Вход на сайт
+
+# endregion
