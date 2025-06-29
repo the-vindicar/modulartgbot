@@ -27,13 +27,8 @@ services:
     ports:
       - "8080:8080"
     build: .
-    environment:
-      - MULTIBOT_DATA=/data/multibot
-      - POSTGRES_HOST=postgresql
-      - POSTGRES_USER=postgres
-      - POSTGRES_PWD=postgres
-      - POSTGRES_DB=multibot
-      - QUART_AUTH_SECRET=Fi098+goku2404-foda421
+    env_file:
+      - .env
     tty: true
     init: true
     depends_on:

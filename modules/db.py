@@ -15,7 +15,7 @@ async def lifetime(api: CoreAPI) -> t.AsyncGenerator:
     """Тело модуля."""
     host = os.environ['POSTGRES_HOST']
     user = os.environ['POSTGRES_USER']
-    pwd = os.environ['POSTGRES_PWD']
+    pwd = os.environ['POSTGRES_PASSWORD']
     dbname = os.environ['POSTGRES_DB']
     dsn = f'postgresql+asyncpg://{user}:{pwd}@{host}/{dbname}'
     log = logging.getLogger('modules.db')
