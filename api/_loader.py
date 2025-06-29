@@ -10,7 +10,7 @@ from typing import (cast, final, Optional, Container, Coroutine, AsyncGenerator,
 
 import quart
 
-from ._protocols import CoreAPI, PluginAPI, ConfigManager
+from ._protocols import CoreAPI, PluginAPI, ConfigManager, PostInit
 
 
 __all__ = ['modules_lifespan']
@@ -40,6 +40,7 @@ class LoadedModule:
     lifetime: Callable[[CoreAPI], AsyncGenerator]
     api: BotCoreAPIImpl
     context: Optional[AsyncGenerator]
+    has_post_init: Optional[bool]
 
     @staticmethod
     def load_from(mod_name: str, api: BotCoreAPIImpl) -> 'LoadedModule':
@@ -53,7 +54,8 @@ class LoadedModule:
             provides=provides,
             lifetime=module.lifetime,
             api=api,
-            context=None
+            context=None,
+            has_post_init=None
         )
 
     @staticmethod
@@ -82,6 +84,13 @@ class LoadedModule:
         """Входит в контекст модуля, выполняя его инициализацию."""
         if self.context is None:
             self.context = self.lifetime(self.api)
+            value = await self.context.__anext__()
+            if value is PostInit:
+                self.has_post_init = True
+
+    async def run_post_init(self) -> None:
+        """Если модуль требует пост-инициализацию, мы позволяем её выполнить. Иначе мы не делаем ничего."""
+        if self.context is not None and self.has_post_init:
             await self.context.__anext__()
 
     async def exit_context(self) -> None:
@@ -126,6 +135,7 @@ async def modules_lifespan(
         """Реализация, позволяющая зарегистрировать blueprint для веб-сервера."""
         webapp.register_blueprint(blueprint)
 
+    # находим и загружаем модули
     loaded_modules = []
     moddir = Path(sys.argv[0]).parent / LoadedModule.MODULES_DIR
     log.debug('Searching for modules in %s ...', moddir)
@@ -149,6 +159,7 @@ async def modules_lifespan(
             else:
                 log.debug('Module %s is loaded.', mod_name)
                 loaded_modules.append(module)
+    # Позволяем модулям инициализироваться
     if not loaded_modules:
         log.info('No available modules found.')
     else:
@@ -162,6 +173,14 @@ async def modules_lifespan(
                 log.critical('Module %s failed to initialize!', module.name, exc_info=err)
                 raise
         log.info('All modules initialized successfully.')
+    # выполняем post-init, если модуль этого требует
+    for module in loaded_modules[::-1]:
+        try:
+            await module.run_post_init()
+        except Exception as err:
+            log.critical('Module %s failed to run its post-init phase!', module.name, exc_info=err)
+            raise
+
     try:
         yield
     finally:
