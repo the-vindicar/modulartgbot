@@ -1,3 +1,4 @@
 # ignored files
 /modules/test.py
 /.idea
+/.env
