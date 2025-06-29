@@ -1,10 +1,10 @@
 """
 Запускает Телеграм-бота с указанным токеном. Предоставляет доступ к боту другим модулям.
 """
-import dataclasses
+from typing import cast, Optional, Dict, Any
 import logging
 import json
-from typing import cast, Optional, Dict, Any
+import os
 
 from sqlalchemy import MetaData, Table, Column, Text, TableClause, select
 from sqlalchemy.dialects.postgresql import insert
@@ -19,13 +19,6 @@ from api import CoreAPI, background_task
 
 requires = [AsyncEngine]
 provides = [aiogram.Dispatcher, aiogram.Bot]
-
-
-@dataclasses.dataclass
-class TGBotConfig:
-    """Настройки телеграм-бота"""
-    bot_token: str
-    temp_storage: bool = False
 
 
 class PostgreStorage(BaseStorage):
@@ -86,8 +79,9 @@ async def lifetime(api: CoreAPI):
     """Тело модуля."""
     log = logging.getLogger('modules.telegram')
     log.info('Preparing telegram bot...')
-    bot_cfg = await api.config.load('telegram', TGBotConfig)
-    if bot_cfg.temp_storage:
+    bot_token = os.environ['TELEGRAM_BOT_TOKEN']
+    temp_storage = os.environ.get('TELEGRAM_FSM_TEMP_STORAGE', '0').lower() in ('1', 'yes', 'on', 'true')
+    if temp_storage:
         log.warning('Using in-memory storage - user states will be lost on restart.')
         storage = MemoryStorage()
         pool_ctx = None
@@ -99,7 +93,7 @@ async def lifetime(api: CoreAPI):
         storage = PostgreStorage(conn)
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
-    bot = aiogram.Bot(token=bot_cfg.bot_token)
+    bot = aiogram.Bot(token=bot_token)
     api.register_api_provider(bot, aiogram.Bot)
     api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')
