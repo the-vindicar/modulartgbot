@@ -231,7 +231,7 @@ async def admin_list_unverified(msg: Message):
 
 def all_message_handlers(dispatcher: Dispatcher) -> t.Iterable[HandlerObject]:
     """Перечисляет все обработчики сообщений, прямо или опосредованно зарегистрированные в диспетчере бота."""
-    for r in dispatcher.chain_head:
+    for r in dispatcher.chain_tail:
         yield from r.message.handlers
 
 
@@ -241,7 +241,7 @@ def all_filters(filters: t.Iterable[FilterObject]) -> t.Iterable[FilterObject]:
         if isinstance(f, (logic._OrFilter, logic._AndFilter)):  # noqa
             yield from all_filters(f.targets)
         elif isinstance(f, logic._InvertFilter):  # noqa
-            yield from all_filters((f.target,))
+            pass  # yield from all_filters((f.target,))
         else:
             yield f
 
@@ -249,39 +249,50 @@ def all_filters(filters: t.Iterable[FilterObject]) -> t.Iterable[FilterObject]:
 def prepare_command_list(dispatcher: Dispatcher) -> CommandsInfo:
     """Составляем список команд в диспетчере, получаем их описания из docstring, и раскидываем их по ролям."""
     commands: CommandsInfo = defaultdict(list)
+    log = logging.getLogger('modules.users')
+    log.debug('Making a list of all available commands...')
+    log.debug('Dispatcher has %d subrouters.', len(dispatcher.sub_routers))
     for h in all_message_handlers(dispatcher):  # команды - это всегда сообщения
+        log.debug('Processing %s()', h.callback.__qualname__)
         filters = list(all_filters(h.filters))
         if any(isinstance(f, State) for f in filters):
+            log.debug('    %s() has a State filter, ignoring it', h.callback.__qualname__)
             continue  # игнорируем команды, требующие определённого состояния FSM
-        handler_commands = [f for f in filters if isinstance(f, Command)]
-        if handler_commands:
-            if is_site_admin in filters:
+        command_filters: list[FilterObject] = [f for f in filters if isinstance(f.callback, Command)]
+        if command_filters:
+            if any(f.callback is is_site_admin for f in filters):
                 roles = UserRoles.SITE_ADMIN,
-            elif is_registered in filters:
+            elif any(f.callback is is_registered for f in filters):
                 roles = UserRoles.SITE_ADMIN, UserRoles.VERIFIED
             else:
                 roles = UserRoles.SITE_ADMIN, UserRoles.VERIFIED, UserRoles.UNVERIFIED
             docstring = getattr(h.callback, '__doc__', 'Нет информации.')
-            for cmd in handler_commands:
+            for fltr in command_filters:
+                cmd: Command = fltr.callback  # type: ignore
                 for cmd_pattern in cmd.commands:
                     if isinstance(cmd_pattern, BotCommand):
                         info = BotCommand(command=f'{cmd_pattern.command}',
                                           description=cmd_pattern.description or docstring)
+                        log.debug('    BotCommand "%s" defined for roles %r', info.command, roles)
                     elif isinstance(cmd_pattern, re.Pattern):
-                        continue
-                        # info = BotCommand(command=f'{cmd_pattern.pattern}', description=docstring)
+                        info = BotCommand(command=f'{cmd_pattern.pattern}', description=docstring)
+                        log.debug('    Regexp command "%s" defined for roles %r', info.command, roles)
                     else:
                         info = BotCommand(command=f'{cmd_pattern}', description=docstring)
+                        log.debug('    String command "%s" defined for roles %r', info.command, roles)
                     for role in roles:
                         commands[role].append(info)
+        else:
+            log.debug('    %s() does not have a Command filter, ignoring it.', h.callback.__qualname__)
     for role, cmds in commands.items():
+        log.debug('For role %s there are %d available commands.', role, len(cmds))
         startcmd, helpcmd = None, None
         for i in range(len(cmds)-1, -1, -1):
-            if cmds[i][0] == 'start':
+            if cmds[i].command == 'start':
                 startcmd = cmds.pop(i)
-            elif cmds[i][0] == 'help':
+            elif cmds[i].command == 'help':
                 helpcmd = cmds.pop(i)
-        cmds.sort(key=lambda item: item[0])
+        cmds.sort(key=lambda item: item.command)
         if startcmd:
             cmds.insert(0, startcmd)
         if helpcmd:

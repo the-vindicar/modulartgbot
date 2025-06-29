@@ -29,6 +29,8 @@ services:
     build: .
     env_file:
       - .env
+    environment:
+      - MULTIBOT_DATA=/data/multibot
     tty: true
     init: true
     depends_on:

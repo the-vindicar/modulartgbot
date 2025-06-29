@@ -26,10 +26,9 @@ async def lifetime(api: CoreAPI):
     await context.repository.create_tables()
     api.register_api_provider(context.repository, UserRepository)
     context.dispatcher.include_router(router)
-
     yield PostInit
-    context.commands = prepare_command_list(context.dispatcher)
 
+    context.commands = prepare_command_list(context.dispatcher)
     if not await context.bot.set_my_commands(context.commands[UserRoles.VERIFIED], BotCommandScopeAllPrivateChats()):
         log.warning('Call to bot.set_my_commands() failed!')
     yield
