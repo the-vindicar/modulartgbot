@@ -6,7 +6,7 @@ import random
 import re
 
 from api import DBModel
-from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey, func
+from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey, func, String
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
@@ -39,14 +39,24 @@ class UserBase(DBModel):
 
 class SiteUser(UserBase):
     __tablename__ = 'Users'
-    id: Mapped[int] = mapped_column(Sequence('User_ID'), primary_key=True, autoincrement=True)
-    tgid: Mapped[int | None] = mapped_column(unique=True, nullable=True)
-    role: Mapped[UserRoles] = mapped_column(nullable=False, server_default=UserRoles.UNVERIFIED)
-    lastname: Mapped[str] = mapped_column(nullable=False, server_default='')
-    firstname: Mapped[str] = mapped_column(nullable=False, server_default='')
-    patronym: Mapped[str] = mapped_column(nullable=False, server_default='')
-    registered: Mapped[datetime.datetime] = mapped_column(nullable=False, server_default='NOW()')
-    fields: Mapped[JSON] = mapped_column(server_default='{}')
+    id: Mapped[int] = mapped_column(Sequence('User_ID'), primary_key=True, autoincrement=True,
+                                    comment='ID пользователя')
+    tgid: Mapped[int | None] = mapped_column(unique=True, nullable=True,
+                                             comment='ID пользователя в Telegram')
+    moodleid: Mapped[int | None] = mapped_column(unique=True, nullable=True,
+                                                 comment='ID пользователя в Moodle')
+    role: Mapped[UserRoles] = mapped_column(String(16), nullable=False, server_default=UserRoles.UNVERIFIED,
+                                            comment='Роль пользователя')
+    lastname: Mapped[str] = mapped_column(nullable=False, server_default='',
+                                          comment='Фамилия')
+    firstname: Mapped[str] = mapped_column(nullable=False, server_default='',
+                                           comment='Имя')
+    patronym: Mapped[str] = mapped_column(nullable=False, server_default='',
+                                          comment='Отчество')
+    registered: Mapped[datetime.datetime] = mapped_column(nullable=False, server_default='NOW()',
+                                                          comment='Дата регистрации')
+    fields: Mapped[dict[str, t.Any]] = mapped_column(JSON, server_default='{}',
+                                                     comment='Дополнительные сведения')
 
     def get_name(self, style: NameStyle) -> str:
         """Возвращает имя в указанном стиле."""

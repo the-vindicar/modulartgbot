@@ -133,7 +133,7 @@ async def on_name_entered(msg: Message, state: FSMContext):
                  lastname=user['lastname'], firstname=user['firstname'], patronym=user['patronym'])
     admin = await context.repository.get_admin()
     if admin is None:
-        context.log.warning('No site admin found! Automatically accepting new user %s (%s) as site admin.',
+        context.log.warning('No site admin found! Automatically accepting new user %s ( %s ) as site admin.',
                             u.get_name(NameStyle.LastFirstPatronym), url)
         u.role = UserRoles.SITE_ADMIN
         await context.repository.store(u)
