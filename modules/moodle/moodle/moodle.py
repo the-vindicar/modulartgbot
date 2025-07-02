@@ -8,7 +8,7 @@ import aiohttp
 from pydantic import TypeAdapter, ValidationError, JsonValue
 
 from .errors import MoodleError, InvalidToken
-from .webservice import MoodleFunctions, ModelType
+from .webservice import MoodleFunctions, ModelType, RUserDescription
 
 __all__ = ['Moodle']
 
@@ -42,6 +42,7 @@ class Moodle:
         self.timezone: datetime.timezone = datetime.timezone.utc
         self.__session = None
         self.__function = MoodleFunctions(self)
+        self.__user: Optional[RUserDescription] = None
 
     @property
     def function(self) -> MoodleFunctions:
@@ -52,6 +53,11 @@ class Moodle:
     def base_url(self) -> str:
         """Base URL of the Moodle instance we are working with."""
         return self.__base_url
+
+    @property
+    def me(self) -> Optional[RUserDescription]:
+        """Information about our account, as retrieved from the server."""
+        return self.__user
 
     async def close(self):
         """Terminates worksession and closes connection to the server.
@@ -155,14 +161,16 @@ class Moodle:
                 elif not isinstance(response, dict) or 'token' not in response:
                     raise MoodleError(url=str(r.url), message='Key "token" not found in the response')
         self.token = response['token']
-        await self._update_timezone()
+        await self._update_user_info()
 
-    async def _update_timezone(self) -> None:
-        """Attempts to acquire timezone info for the account we are using."""
+    async def _update_user_info(self) -> None:
+        """Attempts to acquire user info for the account we are using."""
         res = await self.function.core_user_get_users_by_field(field='username', values=[self.__username])
         if not res:
+            self.__user = None
             return
-        tz = res[0].timezone
+        self.__user = res[0]
+        tz = self.__user.timezone
         if tz not in ('99', None):  # 99 means "use server timezone". Which we don't know anyway!
             self.timezone = datetime.timezone(datetime.timedelta(hours=float(tz)))
 
