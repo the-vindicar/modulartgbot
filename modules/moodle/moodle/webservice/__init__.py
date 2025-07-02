@@ -5,4 +5,5 @@ from .courses import *
 from .users import *
 from .assignments import *
 from .grades import *
+from .messages import *
 from .webservice import MoodleFunctions

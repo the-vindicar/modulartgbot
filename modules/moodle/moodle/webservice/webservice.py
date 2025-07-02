@@ -12,12 +12,13 @@ from .courses import CoursesMixin
 from .users import UsersMixin
 from .assignments import AssignMixin
 from .grades import GradesMixin
+from .messages import MessagesMixin
 
 
 __all__ = ['MoodleFunctions']
 
 
-class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin):
+class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin, MessagesMixin):
     """Moodle Web API wrapper class that provides methods with properly type-hinted parameters and returns.
     If you need to call an API function that does not have a pre-defined method, use __call__() and provide
     function name first. Optionally, provide a Pydantic model to validate the result against."""

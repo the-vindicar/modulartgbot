@@ -29,7 +29,7 @@ class FormatEnum(Enum):
 
 
 class Option(TypedDict):
-    """SOme API calls allow for a set of options in form of a list of name-value pairs."""
+    """Some API calls allow for a set of options in form of a list of name-value pairs."""
     name: str
     value: Any
 
