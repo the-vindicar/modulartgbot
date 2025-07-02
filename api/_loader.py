@@ -61,7 +61,7 @@ class LoadedModule:
     @staticmethod
     def sort_dependencies(loaded: list['LoadedModule']) -> None:
         """Сортирует список модулей так, чтобы зависимые модули были загружены после своих зависимостей."""
-        available: set[Type] = set()
+        available: set[Type] = {quart.Quart}
         ordered: list['LoadedModule'] = []
         unordered = loaded.copy()
         while unordered:
@@ -135,6 +135,7 @@ async def modules_lifespan(
         """Реализация, позволяющая зарегистрировать blueprint для веб-сервера."""
         webapp.register_blueprint(blueprint)
 
+    add_api(webapp, quart.Quart)
     # находим и загружаем модули
     loaded_modules = []
     moddir = Path(sys.argv[0]).parent / LoadedModule.MODULES_DIR

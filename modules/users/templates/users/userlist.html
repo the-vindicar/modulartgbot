@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+    <head>
+        <link rel="stylesheet" href="{{ url_for('users.static', filename='style.css') }}"/>
+        <title>Пользователи</title>
+    </head>
+    <body>
+    {%- for message in get_flashed_messages() %}
+    <div class="message">{{ message }}</div>
+    {% endfor -%}
+    <table>
+        <thead><tr>
+            <th>№</th>
+            <th>Роль</th>
+            <th>ФИО</th>
+            <th>Telegram</th>
+            <th>Зарегистрирован</th>
+            <th>Управление</th>
+        </tr></thead>
+        <tbody>
+        {%- for user in users %}
+        <tr>
+            <td>{{ user.id }}</td>
+            <td>{{ user.role }}</td>
+            <td>{{ user.lastname }} {{ user.firstname }} {{ user.patronym }}</td>
+            <td><a href="tg://user?id={{ user.tgid }}">{{ user.tgid }}</a></td>
+            <td>{{ user.registered.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+                <a href="{{ url_for('.other_user_profile', user_id=user.id) }}">Редактировать</a>
+            </td>
+        </tr>
+        {% endfor -%}
+        </tbody>
+    </table>
+    </body>
+</html>

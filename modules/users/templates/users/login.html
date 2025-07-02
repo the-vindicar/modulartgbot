@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+    <head>
+        <link rel="stylesheet" href="{{ url_for('users.static', filename='style.css') }}"/>
+        <title>Вход на сайт</title>
+    </head>
+    <body>
+    <div class="flex-container">
+        <form method="post" action="{{ login_form_target }}">
+            {%- for message in messages %}
+            <div class="message">{{ message }}</div>
+            {% endfor -%}
+            <div>Отправьте боту <span class="pre">/login</span>, чтобы получить код входа.</div>
+            <div><label for="code">Код входа:</label><input id="code" name="code" type="text"/></div>
+            <div>
+                {% if return_url %}<input type="hidden" name="return_url" value="{{return_url}}"/>{% endif -%}
+                <input type="submit" value="Войти"/>
+            </div>
+        </form>
+    </div>
+    </body>
+</html>

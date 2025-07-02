@@ -6,7 +6,7 @@ import random
 import re
 
 from api import DBModel
-from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey, func, String
+from sqlalchemy import JSON, select, delete, Sequence, DateTime, ForeignKey, func, String, UnaryExpression
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
@@ -219,6 +219,15 @@ class UserRepository:
             result = await session.scalar(stmt)
         return UserRoles(result) if result is not None else UserRoles.UNVERIFIED
 
+    async def get_role_by_id(self, userid: int) -> UserRoles:
+        """Возвращает роль пользователя по его ID.
+        :param userid: ID пользователя.
+        :returns: Обозначение роли."""
+        async with self.__sessionmaker() as session:
+            stmt = select(SiteUser.role).select_from(SiteUser).where(SiteUser.id == userid)
+            result = await session.scalar(stmt)
+        return UserRoles(result) if result is not None else UserRoles.UNVERIFIED
+
     async def get_admin(self) -> SiteUser | None:
         """Возвращает первого пользователя-администратора.
         :returns: Администратор, или None, если нет пользователя с ролью администратора."""
@@ -226,17 +235,24 @@ class UserRepository:
             stmt = select(SiteUser).where(SiteUser.role == UserRoles.SITE_ADMIN)
             return await session.scalar(stmt)
 
-    async def get_all_with_role(self, role: UserRoles) -> t.AsyncIterable[SiteUser]:
-        """Возвращает все пользователей с указанной ролью.
-        :param role: Требуемая роль.
+    async def get_all_by_roles(self, *roles: UserRoles,
+                               inverted: bool = False,
+                               order_by: t.Collection[UnaryExpression] = (SiteUser.id.asc(),)
+                               ) -> t.Sequence[SiteUser]:
+        """Возвращает всех пользователей с указанными ролями (или всех без указанных ролей).
+        :param roles: Пользователь должен иметь одну из этих ролей.
+        :param inverted: Если истина, пользователь НЕ должен иметь одну из указанных ролей.
+        :param order_by: Правила сортировки получаемого списка.
         :returns: Поток пользователей с этой ролью."""
         async with self.__sessionmaker() as session:
+            condition = SiteUser.role.notin_(roles) if inverted else SiteUser.role.in_(roles)
             stmt = (
                 select(SiteUser)
-                .where(SiteUser.role == role)
-                .order_by(SiteUser.registered.desc())
+                .where(condition)
+                .order_by(*order_by)
             )
-            return await session.stream_scalars(stmt)
+            result = await session.scalars(stmt)
+            return result.all()
 
     async def create_onetime_code(self, intent: str, target: SiteUser, lifetime: datetime.timedelta
                                   ) -> tuple[str, datetime.datetime]:
@@ -271,11 +287,15 @@ class UserRepository:
                     return code, expires
         raise RuntimeError('Somehow, we failed to create a unique random code...')
 
-    async def try_consume_onetime_code(self, code: str) -> t.Optional[tuple[str, SiteUser]]:
+    async def try_consume_onetime_code(self, code: str, intent: str = None
+                                       ) -> tuple[t.Optional[str], t.Optional[SiteUser]]:
         """Проверяет наличие соответствующего одноразового кода. Если код существует и не устарел,
         возвращает назначение кода и пользователя, с которым он ассоциирован. При этом код будет удалён из базы.
         :param code: Текст кода. Он уникален, что позволяет идентифицировать пользователя и назначение.
-        :returns: Пара "назначение-пользователь" или None, если код неверен или устарел."""
+        :param intent: Назначение кода. Если указано и не None, то даже существующий в базе код не будет принят и
+            удалён, если его назначение не совпадает с указанным. Если None, то будет принят код с любым назначением.
+            Назначение кода будет возвращено вместе с пользователем.
+        :returns: Пара "назначение-пользователь" или пара None-None, если код неверен или устарел."""
         await self.expire_old_onetime_codes()
         async with self.__sessionmaker() as session:
             stmt = (
@@ -284,10 +304,12 @@ class UserRepository:
                 .join(SiteUser, SiteUser.id == OneTimeCode.user_id)
                 .where(OneTimeCode.code == code)
             )
+            if intent is not None:
+                stmt = stmt.where(OneTimeCode.intent == intent)
             result = await session.execute(stmt)
             row = result.fetchone()
             if row is None:
-                return None
+                return None, None
             intent, user = row
             await session.execute(delete(OneTimeCode).where(OneTimeCode.code == code))
             await session.commit()

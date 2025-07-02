@@ -1,16 +1,24 @@
 """Поддерживает список пользователей системы, а также механизм одноразовых кодов."""
 import logging
+import os
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 from aiogram import Bot, Dispatcher
 from aiogram.types import BotCommandScopeAllPrivateChats
+import quart
+import quart_auth
 
 from api import CoreAPI, PostInit
 from .models import UserBase, SiteUser, UserRepository, UserRoles, NameStyle
-from .tg import context, router, is_registered, is_site_admin, prepare_command_list
+from .common import tg_is_registered, tg_is_site_admin, SiteAuthUser, context, router, blueprint
+from .registration import *
+from .login import *
+from .profile import *
+from .help import prepare_command_list
 
 
-__all__ = ['SiteUser', 'UserRepository', 'UserRoles', 'NameStyle', 'is_registered', 'is_site_admin']
+__all__ = ['SiteAuthUser', 'SiteUser', 'UserRepository', 'UserRoles', 'NameStyle', 'tg_is_registered',
+           'tg_is_site_admin']
 requires = [AsyncEngine, Bot, Dispatcher]
 provides = [UserRepository]
 
@@ -26,6 +34,19 @@ async def lifetime(api: CoreAPI):
     await context.repository.create_tables()
     api.register_api_provider(context.repository, UserRepository)
     context.dispatcher.include_router(router)
+    app = await api(quart.Quart)
+    app.secret_key = os.environ['QUART_AUTH_SECRET']
+    quart_auth.QuartAuth(app, user_class=SiteAuthUser, mode='cookie')
+    api.register_web_router(blueprint)
+
+    async def load_user_before_request():
+        """Загружает сведения о текущем пользователе."""
+        if isinstance(quart_auth.current_user, SiteAuthUser):
+            await quart_auth.current_user.resolve_user()
+
+    app.before_websocket(load_user_before_request)
+    app.before_request(load_user_before_request)
+
     yield PostInit
 
     context.commands = prepare_command_list(context.dispatcher)

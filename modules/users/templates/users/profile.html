@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+    <head>
+        <link rel="stylesheet" href="{{ url_for('users.static', filename='style.css') }}"/>
+        <title>Ваш профиль</title>
+    </head>
+    <body>
+    <div class="flex-container">
+        <form method="post" action="{{ user_profile_target }}">
+            {%- for message in get_flashed_messages() %}
+            <div class="message">{{ message }}</div>
+            {% endfor -%}
+            <table>
+                <tbody>
+                <tr>
+                    <td><label for="lastname">Фамилия:</label></td>
+                    <td><input id="lastname" name="lastname" type="text" value="{{lastname}}"/></td>
+                </tr>
+                <tr>
+                    <td><label for="firstname">Имя:</label></td>
+                    <td><input id="firstname" name="firstname" type="text" value="{{firstname}}"/></td>
+                </tr>
+                <tr>
+                    <td><label for="patronym">Отчество:</label></td>
+                    <td><input id="patronym" name="patronym" type="text" value="{{patronym}}"/></td>
+                </tr>
+                <tr>
+                    {% if admin_edit -%}
+                    <td><label for="tgid">Telegram ID:</label></td>
+                    <td><input id="tgid" name="tgid" type="text" value="{{tgid}}"/></td>
+                    {%- else -%}
+                    <td><label>Telegram ID:</label></td>
+                    <td><a href="tg://user?id={{user.tgid}}">ссылка</a></td>
+                    {% endif %}
+                </tr>
+                <tr>
+                    {% if admin_edit -%}
+                    <td><label for="moodleid">Moodle ID:</label></td>
+                    <td><input id="moodleid" name="moodleid" type="text" value="{{moodleid}}"/></td>
+                    {%- else -%}
+                    <td><label>Учётная запись в СДО:</label></td>
+                    {% if moodle_user_link %}
+                    <td><a href="{{moodle_user_link}}">ссылка</a></td>
+                    {%- else -%}
+                    <td>Отправьте боту <span class="pre">/moodle</span>, чтобы привязать её.</td>
+                    {% endif %}
+                    {% endif %}
+                </tr>
+                </tbody>
+            </table>
+            <div>
+                <input type="submit" value="Обновить профиль"/>
+            </div>
+        </form>
+    </div>
+    </body>
+</html>
