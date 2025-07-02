@@ -1,11 +1,12 @@
 """Provides a class that can be used to interact with a Moodle instance using Web API."""
-import datetime
 from typing import Any, Union, Optional, overload, Type
 import asyncio
+import datetime
+import enum
 import logging
 
 import aiohttp
-from pydantic import TypeAdapter, ValidationError, JsonValue
+from pydantic import BaseModel, TypeAdapter, ValidationError, JsonValue
 
 from .errors import MoodleError, InvalidToken
 from .webservice import MoodleFunctions, ModelType, RUserDescription
@@ -220,9 +221,15 @@ class Moodle:
             for key, val in value.items():
                 result.update(self.transform_param(f'{name}[{key}]', val))  # значения преобразуем рекурсивно
             return result
+        elif isinstance(value, BaseModel):
+            # Pydantic models are interpreted as dicts
+            return self.transform_param(name, value.model_dump(mode='json', exclude_none=True, warnings='error'))
         elif isinstance(value, datetime.datetime):
             # datetime is transformed into an integer timestamp, according to server timezone
             return {name: self.datetime2timestamp(value)}
+        elif isinstance(value, enum.Enum):
+            # Enums are replaces with their values
+            return {name: value.value}
         elif isinstance(value, bool):
             # boolean values are sent as 0 and 1
             return {name: int(value)}
