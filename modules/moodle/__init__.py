@@ -15,7 +15,7 @@ from api import CoreAPI, PostInit, background_task
 
 __all__ = [
     'MoodleAdapter', 'MoodleMessageBot', 'MoodleError',
-    'MessageType', 'ConvType', 'MessageReadStatus', 'SendMessage', 'SendInstantMessage',
+    'MessageType', 'ConvType', 'MessageReadStatus', 'SendMessage', 'SendInstantMessage', 'RMessage',
     'user_id', 'course_id', 'assignment_id', 'group_id', 'role_id', 'submission_id',
     'User', 'Group', 'Role', 'Course', 'Participant', 'Assignment', 'Submission', 'SubmittedFile'
 ]

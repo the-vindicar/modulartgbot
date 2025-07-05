@@ -254,6 +254,8 @@ class UserRepository:
             result = await session.scalars(stmt)
             return result.all()
 
+    ONE_TIME_CODE_PATTERN = re.compile(r'\d{4}-\d{4}')
+
     async def create_onetime_code(self, intent: str, target: SiteUser, lifetime: datetime.timedelta
                                   ) -> tuple[str, datetime.datetime]:
         """Генерирует одноразовый код для указанного пользователя.
@@ -287,14 +289,14 @@ class UserRepository:
                     return code, expires
         raise RuntimeError('Somehow, we failed to create a unique random code...')
 
-    async def try_consume_onetime_code(self, code: str, intent: str = None
+    async def try_consume_onetime_code(self, code: str, intent: t.Union[None, str, t.Collection[str]] = None
                                        ) -> tuple[t.Optional[str], t.Optional[SiteUser]]:
         """Проверяет наличие соответствующего одноразового кода. Если код существует и не устарел,
         возвращает назначение кода и пользователя, с которым он ассоциирован. При этом код будет удалён из базы.
         :param code: Текст кода. Он уникален, что позволяет идентифицировать пользователя и назначение.
         :param intent: Назначение кода. Если указано и не None, то даже существующий в базе код не будет принят и
-            удалён, если его назначение не совпадает с указанным. Если None, то будет принят код с любым назначением.
-            Назначение кода будет возвращено вместе с пользователем.
+            удалён, если его назначение не соответствует указанному. Если None, то будет принят код с любым назначением.
+            Может быть коллекцией допустимых назначений. Назначение кода будет возвращено вместе с пользователем.
         :returns: Пара "назначение-пользователь" или пара None-None, если код неверен или устарел."""
         await self.expire_old_onetime_codes()
         async with self.__sessionmaker() as session:
@@ -304,8 +306,10 @@ class UserRepository:
                 .join(SiteUser, SiteUser.id == OneTimeCode.user_id)
                 .where(OneTimeCode.code == code)
             )
-            if intent is not None:
+            if isinstance(intent, str):
                 stmt = stmt.where(OneTimeCode.intent == intent)
+            elif intent is not None:
+                stmt = stmt.where(OneTimeCode.intent.in_(intent))
             result = await session.execute(stmt)
             row = result.fetchone()
             if row is None:
