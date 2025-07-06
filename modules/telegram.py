@@ -23,8 +23,8 @@ provides = [aiogram.Dispatcher, aiogram.Bot]
 
 class PostgreStorage(BaseStorage):
     """Stores aiogram FSM states for users in a PostgreSQL database, using SQLAlchemy engine."""
-    def __init__(self, conn: AsyncConnection, table: str = 'AiogramFSMStorage', builder: KeyBuilder = None):
-        self.__conn = conn
+    def __init__(self, engine: AsyncEngine, table: str = 'AiogramFSMStorage', builder: KeyBuilder = None):
+        self.__engine = engine
         metadata = MetaData()
         self.__table = Table(
             table,
@@ -33,8 +33,13 @@ class PostgreStorage(BaseStorage):
             Column('state', Text, nullable=True),
             Column('data', Text, nullable=True),
         )
-        self.__table.create(bind=self.__conn.sync_connection, checkfirst=True)
         self.__builder = builder or DefaultKeyBuilder()
+
+    async def create_table(self) -> None:
+        """Creates the storage table, if it doesn't exist yet."""
+        async with self.__engine.begin() as conn:
+            conn: AsyncConnection
+            self.__table.create(bind=conn.sync_connection, checkfirst=True)
 
     @property
     def table(self) -> Table:
@@ -46,14 +51,16 @@ class PostgreStorage(BaseStorage):
         statename = state if isinstance(state, str) or state is None else state.state
         stmt = insert(cast(TableClause, self.__table)).values(key=statekey, state=statename)
         stmt = stmt.on_conflict_do_update(index_elements=['key'], set_=dict(state=stmt.excluded.state))
-        async with self.__conn.begin():
-            await self.__conn.execute(stmt)
+        async with self.__engine.begin() as conn:
+            conn: AsyncConnection
+            await conn.execute(stmt)
 
     async def get_state(self, key: StorageKey) -> Optional[str]:
         statekey = self.__builder.build(key)
         stmt = select('state').select_from(self.__table).where(self.__table.c.key == statekey)
-        async with self.__conn.begin():
-            state = await self.__conn.scalar(stmt)  # noqa
+        async with self.__engine.begin() as conn:
+            conn: AsyncConnection
+            state = await conn.scalar(stmt)  # noqa
         return state
 
     async def set_data(self, key: StorageKey, data: Dict[str, Any]) -> None:
@@ -61,18 +68,20 @@ class PostgreStorage(BaseStorage):
         statedata = json.dumps(data, ensure_ascii=True, indent=None, separators=(',', ':'))
         stmt = insert(cast(TableClause, self.__table)).values(key=statekey, data=statedata)
         stmt = stmt.on_conflict_do_update(index_elements=['key'], set_=dict(data=stmt.excluded.data))
-        async with self.__conn.begin():
-            await self.__conn.execute(stmt)
+        async with self.__engine.begin() as conn:
+            conn: AsyncConnection
+            await conn.execute(stmt)
 
     async def get_data(self, key: StorageKey) -> Dict[str, Any]:
         statekey = self.__builder.build(key)
         stmt = select('data').select_from(self.__table).where(self.__table.c.key == statekey)
-        async with self.__conn.begin():
-            data = await self.__conn.scalar(stmt)  # noqa
+        async with self.__engine.begin() as conn:
+            conn: AsyncConnection
+            data = await conn.scalar(stmt)  # noqa
         return json.loads(data) if data else {}
 
     async def close(self) -> None:
-        await self.__conn.close()
+        self.__engine = None
 
 
 async def lifetime(api: CoreAPI):
@@ -84,13 +93,11 @@ async def lifetime(api: CoreAPI):
     if temp_storage:
         log.warning('Using in-memory storage - user states will be lost on restart.')
         storage = MemoryStorage()
-        pool_ctx = None
     else:
         log.debug('Database storage selected - trying to set it up.')
         engine = await api(AsyncEngine)
-        pool_ctx = engine.connect()
-        conn = await pool_ctx.__aenter__()
-        storage = PostgreStorage(conn)
+        storage = PostgreStorage(engine)
+        await storage.create_table()
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
     bot = aiogram.Bot(token=bot_token)
@@ -103,7 +110,4 @@ async def lifetime(api: CoreAPI):
         async with background_task(tgdispatcher.start_polling(bot, handle_signals=False)):
             yield
     finally:
-        if pool_ctx:
-            await pool_ctx.__aexit__(None, None, None)
-            log.debug('Database storage released.')
         log.info('Telegram bot stopped.')
