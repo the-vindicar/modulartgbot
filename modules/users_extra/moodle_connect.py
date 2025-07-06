@@ -1,7 +1,7 @@
 """Реализует привязку учётной записи в Moodle."""
 from datetime import timedelta
 
-from aiogram.types import Message
+from aiogram.types import Message, CopyTextButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 
 from .common import context, tgrouter
@@ -29,8 +29,12 @@ async def handle_moodle_attach(msg: Message):
                          f'Используйте команду /moodle_detach чтобы отвязать её.')
     else:
         code, _expires = await context.repository.create_onetime_code(MOODLE_ATTACH_INTENT, user, timedelta(minutes=10))
-        await msg.answer(f'Чтобы привязать учётную запись Moodle, в течение 10 минут отправьте код **{code}** '
-                         f'в личные сообщения пользователю {botusername} ( {botuserlink} ).', parse_mode='markdown')
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text='Копировать код', copy_text=CopyTextButton(text=code))]
+        ])
+        await msg.answer(f'Чтобы привязать учётную запись Moodle, в течение 10 минут отправьте код `{code}` '
+                         f'в личные сообщения пользователю {botusername} ( {botuserlink} ).',
+                         parse_mode='markdown', reply_markup=markup)
 
 
 @tgrouter.message(Command('moodle_detach'), tg_is_registered)
@@ -50,11 +54,7 @@ async def handle_moodle_intent_code(_intent: str, user: SiteUser, msg: RMessage)
     """Реагирует на отправленный в личку Moodle одноразовый код с нужным intent."""
     userlink = f'{context.moodle.base_url}user/profile.php?id={msg.useridfrom}'
     user.moodleid = msg.useridfrom
-    context.log.debug('INCOMING: %s', user)
-    userid = int(user.id)
     await context.repository.store(user)
-    user = await context.repository.get_by_id(userid)
-    context.log.debug('REFETCH: %s', user)
     await context.bot.send_message(
         user.tgid,
         text=f'Учётная запись "{msg.userfromfullname}" ( {userlink} ) успешно привязана к вашей.')

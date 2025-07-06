@@ -1,5 +1,7 @@
 """Предоставляет механизмы обработки одноразовых кодов, пришедших в личку Moodle."""
 import typing as t
+import re
+
 from .common import context
 from modules.moodle import MoodleMessageBot, RMessage
 from modules.users import SiteUser
@@ -16,8 +18,13 @@ class MoodleCodeHandler:
 
     async def _handle(self, msg: RMessage) -> None:
         """Обрабатывает сообщения, выглядящие как одноразовый код."""
-        intent, user = await context.repository.try_consume_onetime_code(msg.fullmessage,
-                                                                         intent=list(self._handlers.keys()))
+        match = context.repository.ONE_TIME_CODE_PATTERN.search(msg.fullmessage)
+        if not match:
+            context.log.warning('For some reason, one-time code message "%s" does not match the pattern "%s"',
+                                msg.fullmessage, context.repository.ONE_TIME_CODE_PATTERN.pattern)
+            return
+        code = match.group(0)
+        intent, user = await context.repository.try_consume_onetime_code(code, intent=list(self._handlers.keys()))
         if intent is not None and user is not None:
             context.log.debug('Received a one-time code with intent "%s" from user %s via Moodle PM.',
                               intent, msg.userfromfullname)
@@ -28,10 +35,13 @@ class MoodleCodeHandler:
                 except Exception as err:
                     context.log.warning('Handler %r for a one-time code with intent "%s" failed!',
                                         handler, intent, exc_info=err)
+            else:
+                context.log.warning('No handler found for a one-time code with intent "%s".', intent)
 
     def register_self(self, bot: MoodleMessageBot) -> None:
         """Регистрирует обработчик сообщений, выглядящих как одноразовый код."""
-        bot.register(context.repository.ONE_TIME_CODE_PATTERN, self._handle)
+        pattern = re.compile(r'(?:.*?\D+)?' + context.repository.ONE_TIME_CODE_PATTERN.pattern + r'(?:\D+.*?)?')
+        bot.register(pattern, self._handle)
 
     def register(self, intent: str, handler: CodeHandler) -> None:
         """Регистрирует обработчик для одноразовых кодов с указанным intent.

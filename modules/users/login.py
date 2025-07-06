@@ -2,7 +2,7 @@
 from datetime import timedelta
 from urllib.parse import urlparse
 
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CopyTextButton
 from aiogram.filters import Command
 import quart
 import quart_auth
@@ -26,7 +26,10 @@ async def on_login_command(msg: Message):
     context.log.debug('User %s ( %s ) requested a login code.',
                       user.get_name(NameStyle.LastFP), msg.from_user.url)
     code, _expires = await context.repository.create_onetime_code(WEB_LOGIN_INTENT, user, timedelta(minutes=10))
-    await msg.answer(f'Ваш код входа на сайт (истекает через 10 минут): {code}')
+    markup = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='Копировать код', copy_text=CopyTextButton(text=code))]
+    ])
+    await msg.answer(f'Ваш код входа на сайт (истекает через 10 минут): `{code}`', reply_markup=markup)
 
 
 @blueprint.route('/login', methods=['GET', 'POST'])
