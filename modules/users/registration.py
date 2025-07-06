@@ -33,7 +33,7 @@ async def blocked_query(query: CallbackQuery):
 
 @router.message(CommandStart())
 async def on_start_command(msg: Message, state: FSMContext):
-    """При вводе /start проверяет, зарегистирован ли пользователь. Если нет, начинает процесс регистрации."""
+    """Позволяет зарегистрироваться."""
     user_id = msg.from_user.id
     user = await context.repository.get_by_tgid(user_id)
     if user is not None:

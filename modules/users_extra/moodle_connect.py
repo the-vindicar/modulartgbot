@@ -21,7 +21,7 @@ async def handle_moodle_attach(msg: Message):
     """Позволяет привязать к вашей учётной записи учётную запись Moodle, или узнать привязанную."""
     user = await context.repository.get_by_tgid(msg.from_user.id)
     botusername = context.moodle.me.fullname
-    botuserlink = f'{context.moodle.base_url}user/profile.php?id={context.moodle.me.id}'
+    botuserlink = f'{context.moodle.base_url}message/index.php?id={context.moodle.me.id}'
     if user.moodleid is not None:
         userlink = f'{context.moodle.base_url}user/profile.php?id={user.moodleid}'
         await msg.answer(f'К вашей учётной записи уже привязана учётная запись Moodle.\r\n'

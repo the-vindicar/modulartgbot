@@ -6,7 +6,6 @@ from aiogram import Bot, Dispatcher
 
 from api import CoreAPI
 from .common import context
-from .profile import *
 from modules.users import UserRepository
 from modules.moodle import MoodleAdapter, MoodleMessageBot
 
