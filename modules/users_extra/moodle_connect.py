@@ -50,7 +50,11 @@ async def handle_moodle_intent_code(_intent: str, user: SiteUser, msg: RMessage)
     """Реагирует на отправленный в личку Moodle одноразовый код с нужным intent."""
     userlink = f'{context.moodle.base_url}user/profile.php?id={msg.useridfrom}'
     user.moodleid = msg.useridfrom
+    context.log.debug('INCOMING: %s', user)
+    userid = int(user.id)
     await context.repository.store(user)
+    user = await context.repository.get_by_id(userid)
+    context.log.debug('REFETCH: %s', user)
     await context.bot.send_message(
         user.tgid,
         text=f'Учётная запись "{msg.userfromfullname}" ( {userlink} ) успешно привязана к вашей.')

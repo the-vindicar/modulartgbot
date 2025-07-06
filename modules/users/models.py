@@ -145,12 +145,15 @@ class UserRepository:
                     SiteUser.patronym: stmt.excluded.patronym,
                     SiteUser.lastname: stmt.excluded.lastname,
                     SiteUser.tgid: stmt.excluded.tgid,
+                    SiteUser.moodleid: stmt.excluded.moodleid,
                     SiteUser.role: stmt.excluded.role,
+                    SiteUser.fields: stmt.excluded.fields
                 }
             )
             await session.execute(stmt, dict(
-                id=user.id, tgid=user.tgid, role=user.role,
-                firstname=user.firstname, patronym=user.patronym, lastname=user.lastname
+                id=user.id, tgid=user.tgid, moodleid=user.moodleid, role=user.role,
+                firstname=user.firstname, patronym=user.patronym, lastname=user.lastname,
+                fields=user.fields
             ))
             await session.commit()
 
