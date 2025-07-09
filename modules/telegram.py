@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
 
 import aiogram
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.base import BaseStorage, StorageKey, StateType, KeyBuilder, DefaultKeyBuilder
 from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
 
@@ -100,7 +101,7 @@ async def lifetime(api: CoreAPI):
         await storage.create_table()
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
-    bot = aiogram.Bot(token=bot_token)
+    bot = aiogram.Bot(token=bot_token, default=DefaultBotProperties(parse_mode='markdown'))
     api.register_api_provider(bot, aiogram.Bot)
     api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')

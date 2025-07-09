@@ -40,14 +40,14 @@ async def on_start_command(msg: Message, state: FSMContext):
         text = f'''Доброе время суток, {user.get_name(NameStyle.FirstPatronym)}.'''
         if user.role == UserRoles.UNVERIFIED:
             text += '\r\nВаша учётная запись ещё не подтверждена.'
-        await msg.answer(text, parse_mode='markdown')
+        await msg.answer(text)
     else:
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text='Отмена', callback_data=f'register.cancel.{msg.from_user.id}')]
         ])
         text = (f'Вы ещё не зарегистрированы. Пожалуйста, введите своё ФИО, '
                 f'разделённое пробелами или переносами строк (например, Иванов Иван Иванович или Петров Пётр).')
-        await msg.answer(text, parse_mode='markdown', reply_markup=markup)
+        await msg.answer(text, reply_markup=markup)
         await state.set_state(UserRegistrationStates.awaiting_name)
         context.log.debug('User %d attempting registration.', msg.from_user.id)
 

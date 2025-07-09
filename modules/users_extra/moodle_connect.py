@@ -34,7 +34,7 @@ async def handle_moodle_attach(msg: Message):
         ])
         await msg.answer(f'Чтобы привязать учётную запись Moodle, в течение 10 минут отправьте код `{code}` '
                          f'в личные сообщения пользователю {botusername} ( {botuserlink} ).',
-                         parse_mode='markdown', reply_markup=markup)
+                         reply_markup=markup)
 
 
 @tgrouter.message(Command('moodle_detach'), tg_is_registered)
