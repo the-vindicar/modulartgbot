@@ -14,7 +14,7 @@ import openpyxl
 from .parsing import parse_workload, fill_template, TeacherWorkload
 
 
-__all__ = ['router', 'log']
+__all__ = ['router', 'log', 'template_path']
 router = Router(name='workload')
 log = logging.getLogger('modules.workload')
 template_path = Path(__file__).parent / 'template.xlsx'
@@ -38,7 +38,7 @@ async def workload_cmd(msg: Message, state: FSMContext):
                      'Для отмены отправьте /no')
 
 
-@router.message(Command('/no'), or_f(WorkloadStates.ExpectingName, WorkloadStates.ExpectingFile))
+@router.message(Command('no'), or_f(WorkloadStates.ExpectingName, WorkloadStates.ExpectingFile))
 async def cancel(msg: Message, state: FSMContext):
     """Отменяет операцию."""
     await state.set_state(None)
@@ -117,7 +117,9 @@ async def handle_name(msg: Message, name: str) -> None:
         result.save(buffer)
         buffer.seek(0)
         file = BufferedInputFile(buffer.read(), f'{name} ({year}-{year+1}).xlsx')
-        await msg.answer_document(file, caption=f'Нагрузка для {name} ({year}-{year+1})')
+        await msg.answer_document(file, caption=f'Нагрузка для {name} ({year}-{year+1})\r\n'
+                                                'Даты выполнения нагрузки ориентировочные '
+                                                'и могут потребовать коррекции.')
     except Exception as err:
         log.warning('Failed to respond with workload! File ID: %s', file_id, exc_info=err)
         await msg.answer('Простите, но что-то пошло не так при подготовке данных.\r\n'

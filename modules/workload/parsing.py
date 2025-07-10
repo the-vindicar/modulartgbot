@@ -117,8 +117,8 @@ def parse_workload(ws: Worksheet) -> dict[str, TeacherWorkload]:
             continue
         teacher_name = cell.value.strip()
         if teacher_name[0] in WorkloadType:
-            teacher_name = teacher_name[1:].strip()
             load_type = WorkloadType(teacher_name[0])
+            teacher_name = teacher_name[1:].strip()
         else:
             load_type = WorkloadType.MAIN
         cell = ws.cell(row=row, column=lesson_col)
@@ -169,7 +169,7 @@ def parse_workload(ws: Worksheet) -> dict[str, TeacherWorkload]:
 
 
 def split_workload(workload: TeacherWorkload) -> tuple[TeacherWorkload, TeacherWorkload, TeacherWorkload]:
-    """Разбивает нагрузку на осенний семестре, весенний семестр и неопределённую.
+    """Разбивает нагрузку на осенний семестр, весенний семестр и неопределённую.
     Нагрузка, не привязанная к семестру, будет отнесена на весенний семестр.
     У заочников триместры 1 и 2 относятся к осени, а 3 - к весне."""
     autumn: TeacherWorkload = defaultdict(list)
@@ -192,12 +192,16 @@ def split_workload(workload: TeacherWorkload) -> tuple[TeacherWorkload, TeacherW
     return autumn, spring, unknown
 
 
-def set_dates(ws: Worksheet, year: int, start_month: int) -> None:
+def set_dates(ws: Worksheet, year: int, start_month: int) -> list[datetime.datetime]:
     """Задаёт столбцы месяцев."""
+    dates = []
     for i, cell in enumerate(ws['J4:N4'][0]):
         cell: Cell
         month = start_month + i
-        cell.value = datetime.datetime(year=year + int(month > 12), month=(month - 1) % 12 + 1, day=1)
+        dt = datetime.datetime(year=year + int(month > 12), month=(month - 1) % 12 + 1, day=1)
+        cell.value = dt
+        dates.append(dt)
+    return dates
 
 
 def fix_groups(groups: set[str]) -> str:
@@ -286,15 +290,18 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
         del workload[WorkloadType.G]
     autumn, spring, unknown = split_workload(workload)
     autumn_s = wb['Осень']
-    set_dates(autumn_s, year, 9)
+    autumn_dates = set_dates(autumn_s, year, 9)
     spring_s = wb['Весна']
-    set_dates(spring_s, year+1, 2)
-    pages: list[tuple[TeacherWorkload, Worksheet]] = [(autumn, autumn_s), (spring, spring_s)]
+    spring_dates = set_dates(spring_s, year+1, 2)
+    pages: list[tuple[TeacherWorkload, Worksheet, list[datetime.datetime]]] = [
+        (autumn, autumn_s, autumn_dates),
+        (spring, spring_s, spring_dates),
+    ]
     if unknown and any(unknown.values()):
         unknown_s = wb.copy_worksheet(autumn_s)
         unknown_s.title = 'НЕ ОПРЕДЕЛЕНО'
-        pages.append((unknown, unknown_s))
-    for data, sheet in pages:
+        pages.append((unknown, unknown_s, autumn_dates))
+    for data, sheet, dates in pages:
         if sheet.freeze_panes:
             cell: Cell = sheet[sheet.freeze_panes]
             row, startcol = cell.row, cell.column
@@ -324,6 +331,8 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                             sheet.cell(row=row, column=startcol+2,
                                        value=ACTIVITY_NAMES.get(start.activity, start.activity))
                             sheet.cell(row=row, column=startcol+3, value=groupnames)
+                            sheet.cell(row=row, column=startcol+4).value = dates[0]
+                            sheet.cell(row=row, column=startcol+5).value = dates[-1] - datetime.timedelta(days=1)
                             sheet.cell(row=row, column=startcol+6, value=hourformula)
                             row += 1
                         if sum(exam_hours) > 0 and start.exam is not None:  # есть экзамен или зачёт
@@ -331,6 +340,10 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                             sheet.cell(row=row, column=startcol+1, value=start.course)
                             sheet.cell(row=row, column=startcol+2,
                                        value=EXAM_NAMES.get(start.exam, start.exam.value))
+                            sheet.cell(row=row, column=startcol+4).value = dates[-1]
+                            sheet.cell(row=row, column=startcol+5).value = (
+                                    dates[-1].replace(month=dates[-1].month + 1) - datetime.timedelta(days=1)
+                            )
                             sheet.cell(row=row, column=startcol+3, value=groupnames)
                             sheet.cell(row=row, column=startcol+6, value=examformula)
                             row += 1
@@ -359,12 +372,18 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                     sheet.cell(row=row, column=startcol+1, value=start.course)
                     sheet.cell(row=row, column=startcol+2, value=ACTIVITY_NAMES.get(start.activity, start.activity))
                     sheet.cell(row=row, column=startcol+3, value=groupnames)
+                    sheet.cell(row=row, column=startcol+4).value = dates[0]
+                    sheet.cell(row=row, column=startcol+5).value = dates[-1] - datetime.timedelta(days=1)
                     sheet.cell(row=row, column=startcol+6, value=hourformula)
                     row += 1
                 if sum(exam_hours) > 0 and start.exam is not None:  # есть экзамен или зачёт
                     sheet.cell(row=row, column=startcol+0, value=LOAD_NAMES[loadtype])
                     sheet.cell(row=row, column=startcol+1, value=start.course)
                     sheet.cell(row=row, column=startcol+2, value=EXAM_NAMES.get(start.exam, start.exam.value))
+                    sheet.cell(row=row, column=startcol+4).value = dates[-1]
+                    sheet.cell(row=row, column=startcol+5).value = (
+                            dates[-1].replace(month=dates[-1].month+1) - datetime.timedelta(days=1)
+                    )
                     sheet.cell(row=row, column=startcol+3, value=groupnames)
                     sheet.cell(row=row, column=startcol+6, value=examformula)
                     row += 1
