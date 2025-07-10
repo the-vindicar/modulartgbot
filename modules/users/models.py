@@ -180,6 +180,14 @@ class UserRepository:
         async with self.__sessionmaker() as session:
             return await session.get(SiteUser, ident=userid)
 
+    async def get_by_moodle_id(self, moodleid: int) -> SiteUser | None:
+        """Возвращает пользователя с указанным Moodle ID.
+        :param moodleid: Moodle ID пользователя.
+        :returns: Пользователь, или None, если такого Moodle ID нет."""
+        async with self.__sessionmaker() as session:
+            stmt = select(SiteUser).where(SiteUser.moodleid == moodleid)
+            return await session.scalar(stmt)
+
     async def get_by_name(self, name: str, style: NameStyle) -> list[SiteUser]:
         """Ищет пользователей по имени, заданном в указанном стиле.
         :param name: Образец имени, например, "Иван Иванович Иванов" или "Петров П.П.".
