@@ -28,10 +28,8 @@ def all_message_handlers(dispatcher: Dispatcher) -> t.Iterable[HandlerObject]:
 def all_filters(filters: t.Iterable[FilterObject]) -> t.Iterable[FilterObject]:
     """Распаковывает логические конструкции из фильтров, получая цепочку базовых фильтров."""
     for f in filters:
-        if isinstance(f, (logic._OrFilter, logic._AndFilter)):  # noqa
-            yield from all_filters(f.targets)
-        elif isinstance(f, logic._InvertFilter):  # noqa
-            pass  # yield from all_filters((f.target,))
+        if isinstance(f.callback, (logic._OrFilter, logic._AndFilter)):  # noqa
+            yield from all_filters(f.callback.targets)
         else:
             yield f
 
@@ -41,11 +39,12 @@ def prepare_command_list(dispatcher: Dispatcher) -> CommandsInfo:
     commands: CommandsInfo = defaultdict(list)
     log = logging.getLogger('modules.users')
     log.debug('Making a list of all available commands...')
-    log.debug('Dispatcher has %d subrouters.', len(dispatcher.sub_routers))
+    log.debug('Dispatcher has %d subrouters: %s',
+              len(dispatcher.sub_routers), ', '.join([r.name for r in dispatcher.sub_routers]))
     for h in all_message_handlers(dispatcher):  # команды - это всегда сообщения
         log.debug('Processing %s()', h.callback.__qualname__)
         filters = list(all_filters(h.filters))
-        if any(isinstance(f, State) for f in filters):
+        if any(isinstance(f.callback, State) for f in filters):
             log.debug('    %s() has a State filter, ignoring it', h.callback.__qualname__)
             continue  # игнорируем команды, требующие определённого состояния FSM
         command_filters: list[FilterObject] = [f for f in filters if isinstance(f.callback, Command)]
