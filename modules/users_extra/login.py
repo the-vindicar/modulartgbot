@@ -7,15 +7,15 @@ from aiogram.filters import Command
 import quart
 import quart_auth
 
-from .models import NameStyle
-from .common import tg_is_registered, context, router, blueprint
+from modules.users import NameStyle, tg_is_registered
+from .common import context, tgrouter, blueprint
 
 
 __all__ = []
 WEB_LOGIN_INTENT = 'web_login'
 
 
-@router.message(tg_is_registered, Command('login'))
+@tgrouter.message(tg_is_registered, Command('login'))
 async def on_login_command(msg: Message):
     """Предоставляет одноразовый код для входа на сайт."""
     user = await context.repository.get_by_tgid(msg.from_user.id)
@@ -46,7 +46,7 @@ async def login():
             user = None
         if user is None:  # такого кода нет, или он не для логина на сайт
             return await quart.render_template(
-                'users/login.html',
+                'users_extra/login.html',
                 return_url=return_url,
                 messages=['Введённый код неверен или устарел.'],
                 login_form_target=quart.url_for('.login')
@@ -64,7 +64,7 @@ async def login():
     else:  # метод GET - показываем форму входа
         return_url = quart.request.args.get('return_url', '')
         return await quart.render_template(
-            'users/login.html',
+            'users_extra/login.html',
             return_url=return_url,
             messages=[],
             login_form_target=quart.url_for('.login')

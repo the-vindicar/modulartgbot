@@ -11,10 +11,8 @@ import quart_auth
 from api import CoreAPI, PostInit
 from .models import UserBase, SiteUser, UserRepository, UserRoles, NameStyle
 from .common import (tg_is_registered, tg_is_site_admin, SiteAuthUser, context, router,
-                     blueprint, web_is_site_admin, web_is_registered)
+                     web_is_site_admin, web_is_registered)
 from .registration import *
-from .login import *
-from .profile import *
 from .help import prepare_command_list
 
 
@@ -46,7 +44,6 @@ async def lifetime(api: CoreAPI):
 
     app.before_websocket(load_user_before_request)
     app.before_request(load_user_before_request)
-    api.register_web_router(blueprint)
 
     yield PostInit
 

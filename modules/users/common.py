@@ -8,14 +8,14 @@ from aiogram import Router, Dispatcher, Bot
 from aiogram.fsm.state import State
 from aiogram.fsm.storage.memory import StorageKey
 from aiogram.types import Message, CallbackQuery, BotCommand
-from quart import Blueprint, current_app
+from quart import current_app
 import quart_auth
 
 from .models import UserRoles, UserRepository, SiteUser
 
 
 __all__ = [
-    'CommandsInfo', 'blueprint', 'context', 'router',
+    'CommandsInfo', 'context', 'router',
     'tg_is_registered', 'tg_is_site_admin',
     'SiteAuthUser', 'web_is_registered', 'web_is_site_admin']
 CommandsInfo: t.TypeAlias = dict[UserRoles, list[BotCommand]]
@@ -75,10 +75,6 @@ class RegistrationContext:
 
 context: RegistrationContext = RegistrationContext()
 router: Router = Router(name='users')
-blueprint: Blueprint = Blueprint(
-    name='users', import_name='modules.users',
-    url_prefix='/user', template_folder='templates',
-    static_folder='static', static_url_path='static')
 
 
 async def tg_is_registered(src: Message | CallbackQuery) -> bool:

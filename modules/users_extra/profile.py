@@ -3,8 +3,8 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 import quart
 import quart_auth
 
-from .common import context, blueprint, web_is_registered, web_is_site_admin, SiteAuthUser
-from .models import SiteUser, UserRoles
+from .common import context, blueprint
+from modules.users import SiteUser, UserRoles, web_is_registered, web_is_site_admin, SiteAuthUser
 
 
 __all__ = []
@@ -62,7 +62,7 @@ async def full_user_list():
     users = await context.repository.get_all_by_roles(
         UserRoles.UNVERIFIED, inverted=True, order_by=(SiteUser.role.desc(), SiteUser.id.asc()))
     return await quart.render_template(
-        'users/userlist.html',
+        'users_extra/userlist.html',
         users=users
     )
 
@@ -89,7 +89,7 @@ async def edit_user_profile(user: SiteUser, is_admin: bool):
             raw_form.setdefault('tgid', str(user.tgid) if user.tgid else '')
             raw_form.setdefault('moodleid', str(user.moodleid) if user.moodleid else '')
             return await quart.render_template(
-                'users/profile.html',
+                'users_extra/profile.html',
                 admin_edit=is_admin,
                 firstname=raw_form.get('firstname', ''),
                 patronym=raw_form.get('patronym', ''),
@@ -110,7 +110,7 @@ async def edit_user_profile(user: SiteUser, is_admin: bool):
             await quart.helpers.flash('Изменения сохранены.')
 
     return await quart.render_template(
-        'users/profile.html',
+        'users_extra/profile.html',
         admin_edit=is_admin,
         firstname=user.firstname,
         patronym=user.patronym,

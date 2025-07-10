@@ -3,6 +3,7 @@ import dataclasses
 import logging
 
 from aiogram import Router, Dispatcher, Bot
+from quart import Blueprint
 
 from modules.users import UserRepository
 from modules.moodle import MoodleAdapter, MoodleMessageBot
@@ -21,4 +22,8 @@ class RegistrationContext:
 
 context: RegistrationContext = RegistrationContext()
 tgrouter = Router(name='users_extra')
-__all__ = ['context', 'tgrouter']
+blueprint: Blueprint = Blueprint(
+    name='users_extra', import_name='modules.users_extra',
+    url_prefix='/user', template_folder='templates',
+    static_folder='static', static_url_path='static')
+__all__ = ['context', 'tgrouter', 'blueprint']

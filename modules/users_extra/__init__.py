@@ -9,7 +9,9 @@ from .common import context
 from modules.users import UserRepository
 from modules.moodle import MoodleAdapter, MoodleMessageBot
 
-from .common import tgrouter
+from .common import tgrouter, blueprint
+from .login import *
+from .profile import *
 from .code_handler import MoodleCodeHandler
 from .moodle_connect import MOODLE_ATTACH_INTENT, handle_moodle_intent_code
 
@@ -31,6 +33,8 @@ async def lifetime(api: CoreAPI):
     context.moodlebot = await api(MoodleMessageBot)
 
     context.dispatcher.include_router(tgrouter)
+    api.register_web_router(blueprint)
+
     codehandler = MoodleCodeHandler()
     api.register_api_provider(codehandler, MoodleCodeHandler)
     codehandler.register(MOODLE_ATTACH_INTENT, handle_moodle_intent_code)
