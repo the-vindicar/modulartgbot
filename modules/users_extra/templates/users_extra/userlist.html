@@ -22,7 +22,7 @@
         <tr>
             <td>{{ user.id }}</td>
             <td>{{ user.role }}</td>
-            <td>{{ user.lastname }} {{ user.firstname }} {{ user.patronym }}</td>
+            <td>{{ user.lastname|e }} {{ user.firstname|e }} {{ user.patronym|e }}</td>
             <td><a href="tg://user?id={{ user.tgid }}">{{ user.tgid }}</a></td>
             <td>{{ user.registered.strftime('%Y-%m-%d %H:%M') }}</td>
             <td>

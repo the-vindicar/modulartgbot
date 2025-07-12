@@ -2,6 +2,7 @@
 from datetime import timedelta
 from urllib.parse import urlparse
 
+from aiogram import html
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CopyTextButton
 from aiogram.filters import Command
 import quart
@@ -29,7 +30,7 @@ async def on_login_command(msg: Message):
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text='Копировать код', copy_text=CopyTextButton(text=code))]
     ])
-    await msg.answer(f'Ваш код входа на сайт (истекает через 10 минут): `{code}`', reply_markup=markup)
+    await msg.answer(f'Ваш код входа на сайт (истекает через 10 минут): {html.pre(code)}', reply_markup=markup)
 
 
 @blueprint.route('/login', methods=['GET', 'POST'])

@@ -102,4 +102,5 @@ async def on_help_command(msg: Message):
     ]
     for cmd in context.commands[role]:
         text.append(f'/{cmd.command} - {cmd.description}')
-    await msg.answer('\r\n'.join(text))
+    helptext = '\r\n'.join(text)
+    await msg.answer(helptext, parse_mode='HTML')

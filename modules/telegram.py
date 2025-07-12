@@ -101,7 +101,7 @@ async def lifetime(api: CoreAPI):
         await storage.create_table()
         log.debug('Database storage ready.')
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
-    bot = aiogram.Bot(token=bot_token, default=DefaultBotProperties(parse_mode='markdown'))
+    bot = aiogram.Bot(token=bot_token, default=DefaultBotProperties(parse_mode='HTML'))
     api.register_api_provider(bot, aiogram.Bot)
     api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')

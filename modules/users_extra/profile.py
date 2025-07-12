@@ -1,4 +1,6 @@
 """Реализует профиль пользователя."""
+import html
+
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 import quart
 import quart_auth
@@ -70,7 +72,7 @@ async def full_user_list():
 @blueprint.route('/<int:user_id>', methods=['GET', 'POST'])
 @web_is_site_admin
 async def other_user_profile(user_id: int):
-    """Показывает профиль текущего пользователя и позволяет редактировать его."""
+    """Показывает профиль указанного пользователя и позволяет редактировать его."""
     user = await context.repository.get_by_id(user_id)
     return await edit_user_profile(user, is_admin=True)
 
@@ -85,7 +87,7 @@ async def edit_user_profile(user: SiteUser, is_admin: bool):
         except ValidationError as err:
             err: ValidationError
             for ed in err.errors():
-                await quart.helpers.flash(ed['msg'])
+                await quart.helpers.flash(html.escape(ed['msg']))
             raw_form.setdefault('tgid', str(user.tgid) if user.tgid else '')
             raw_form.setdefault('moodleid', str(user.moodleid) if user.moodleid else '')
             return await quart.render_template(

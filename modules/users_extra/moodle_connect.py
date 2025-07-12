@@ -1,6 +1,8 @@
 """Реализует привязку учётной записи в Moodle."""
 from datetime import timedelta
 
+from html import escape as e
+from aiogram import html
 from aiogram.types import Message, CopyTextButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 
@@ -33,7 +35,7 @@ async def handle_moodle_attach(msg: Message):
             [InlineKeyboardButton(text='Копировать код', copy_text=CopyTextButton(text=code))]
         ])
         await msg.answer(f'Чтобы привязать учётную запись Moodle, в течение 10 минут отправьте код `{code}` '
-                         f'в личные сообщения пользователю {botusername} ( {botuserlink} ).',
+                         f'в личные сообщения пользователю {e(botusername)} ( {botuserlink} ).',
                          reply_markup=markup)
 
 
@@ -57,4 +59,4 @@ async def handle_moodle_intent_code(_intent: str, user: SiteUser, msg: RMessage)
     await context.repository.store(user)
     await context.bot.send_message(
         user.tgid,
-        text=f'Учётная запись "{msg.userfromfullname}" ( {userlink} ) успешно привязана к вашей.')
+        text=f'Учётная запись "{html.link(e(msg.userfromfullname), userlink)}" успешно привязана к вашей.')

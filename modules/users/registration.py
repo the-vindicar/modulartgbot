@@ -1,4 +1,6 @@
 """Реализует процесс регистрации пользователя."""
+from html import escape as e
+from aiogram import html
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
@@ -37,7 +39,7 @@ async def on_start_command(msg: Message, state: FSMContext):
     user_id = msg.from_user.id
     user = await context.repository.get_by_tgid(user_id)
     if user is not None:
-        text = f'''Доброе время суток, {user.get_name(NameStyle.FirstPatronym)}.'''
+        text = f'''Доброе время суток, {e(user.get_name(NameStyle.FirstPatronym))}.'''
         if user.role == UserRoles.UNVERIFIED:
             text += '\r\nВаша учётная запись ещё не подтверждена.'
         await msg.answer(text)
@@ -77,19 +79,20 @@ async def on_name_entered(msg: Message, state: FSMContext):
     await state.set_state(UserRegistrationStates.awaiting_confirmation)
     u = SiteUser(tgid=msg.from_user.id, role=UserRoles.UNVERIFIED,
                  lastname=user['lastname'], firstname=user['firstname'], patronym=user['patronym'])
+    uname = u.get_name(NameStyle.LastFirstPatronym)
     admin = await context.repository.get_admin()
     if admin is None:
         context.log.warning('No site admin found! Automatically accepting new user %s ( %s ) as site admin.',
-                            u.get_name(NameStyle.LastFirstPatronym), url)
+                            uname, url)
         u.role = UserRoles.SITE_ADMIN
         await context.repository.store(u)
         await state.set_state(None)
         await msg.answer('Ого! Похоже, вы теперь админ...')
         return
     context.log.debug('Awaiting approval for user %s ( %s ) by the site admin.',
-                      u.get_name(NameStyle.LastFirstPatronym), url)
+                      uname, url)
     await context.repository.store(u)
-    text = f'Пользователь ожидает подтверждения: {u.get_name(NameStyle.LastFirstPatronym)} ( {user["url"]} )'
+    text = f'Пользователь ожидает подтверждения: {html.link(e(uname), user["url"])}'
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text='\u2795 Подтвердить', callback_data=f'register.confirm:{u.tgid}'),
@@ -154,14 +157,16 @@ async def admin_list_unverified(msg: Message):
     for user in await context.repository.get_all_by_roles(UserRoles.UNVERIFIED,
                                                           order_by=(SiteUser.registered.desc(),)):
         total += 1
-        lines.append(f'[#{user.id}] {user.get_name(NameStyle.LastFirstPatronym)}: '
-                     f'{user.registered:%Y-%m-%d %H:%M}; tg://user?id={user.tgid}')
+        uname = e(user.get_name(NameStyle.LastFirstPatronym))
+        ushort = e(user.get_name(NameStyle.LastFP))
+        ulink = f'tg://user?id={user.tgid}'
+        lines.append(f'[#{user.id}] {html.link(uname, ulink)}: {user.registered:%Y-%m-%d %H:%M}; ')
         keyboard.inline_keyboard.append([
-            InlineKeyboardButton(text=f'\u2795 Подтвердить {user.get_name(NameStyle.LastFP)}',
+            InlineKeyboardButton(text=f'\u2795 Подтвердить {ushort}',
                                  callback_data=f'register.confirm:{user.tgid}'),
-            InlineKeyboardButton(text=f'\u21a9 Сбросить {user.get_name(NameStyle.LastFP)}',
+            InlineKeyboardButton(text=f'\u21a9 Сбросить {ushort}',
                                  callback_data=f'register.reset:{user.tgid}'),
-            InlineKeyboardButton(text=f'\u274c Заблокировать {user.get_name(NameStyle.LastFP)}',
+            InlineKeyboardButton(text=f'\u274c Заблокировать {ushort}',
                                  callback_data=f'register.block:{user.tgid}'),
         ])
     if total == 0:
@@ -170,4 +175,4 @@ async def admin_list_unverified(msg: Message):
             'Сейчас нет ни одного пользователя, ожидающего подтверждения.'
         )
     else:
-        await context.bot.send_message(msg.from_user.id, '\r\n'.join(lines), reply_markup=keyboard)
+        await context.bot.send_message(msg.from_user.id, '\r\n'.join(lines), reply_markup=keyboard, parse_mode='HTML')
