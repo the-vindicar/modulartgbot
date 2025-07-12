@@ -548,7 +548,7 @@ class MoodleRepository:
             await session.commit()
 
     async def get_last_submission_times(self, assignids: t.Collection[assignment_id]
-                                        ) -> dict[assignment_id, datetime | None]:
+                                        ) -> dict[assignment_id, t.Optional[datetime]]:
         """Возвращает время отправки самого позднего ответа на каждое из указанных заданий.
         Значение None вместо метки времени означает, что ответов на это задание ещё не было.
         :param assignids: ID заданий, для которых следует загрузить ответы.

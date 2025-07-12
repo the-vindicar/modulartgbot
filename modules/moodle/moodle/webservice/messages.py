@@ -176,6 +176,7 @@ class RMarkAsReadNotification(BaseModel):
     warnings: list[RWarning] = Field(default_factory=list)
 
 
+# noinspection PyShadowingBuiltins
 class MessagesMixin:
     """Mixin providing methods for working with private messages."""
     # region Conversation API

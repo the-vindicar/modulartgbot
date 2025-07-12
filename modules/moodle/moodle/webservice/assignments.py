@@ -1,5 +1,5 @@
 """This submodule deals with retrieving assignments and submissions to them."""
-from typing import Optional, Collection, Literal
+from typing import Optional, Collection, Literal, Union
 from enum import StrEnum
 from datetime import datetime
 from pydantic import BaseModel, PositiveInt, Field
@@ -238,7 +238,7 @@ class AssignMixin:
             self: WebServiceAdapter,
             assignmentids: Collection[int],
             status: str = '',
-            since: datetime | int = 0, before: datetime | int = 0
+            since: Union[datetime, int] = 0, before: Union[datetime, int] = 0
     ) -> RSubmissions:
         """Retrieves submissions for the specified assignments.
         :param assignmentids: IDs of the assignments we want to retrieve submissions for.
@@ -255,7 +255,7 @@ class AssignMixin:
     async def mod_assign_get_grades(
             self: WebServiceAdapter,
             assignmentids: Collection[int],
-            since: datetime | int = 0
+            since: Union[datetime, int] = 0
     ) -> RAssignmentsGrades:
         """Retrieves user grades for the given assignments.
         :param assignmentids: IDs of the assignments we want to retrieve grades for.
@@ -271,7 +271,7 @@ class AssignMixin:
             self: WebServiceAdapter,
             assignid: int,
             userid: int = 0,
-            groupid: int | Literal[''] = 0
+            groupid: Union[int, Literal['']] = 0
     ) -> RSubmissionStatus:
         """Retrieves a single submission's status for the given assignment.
         :param assignid: ID of the assignment.

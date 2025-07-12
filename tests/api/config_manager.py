@@ -1,6 +1,5 @@
 import unittest
 import dataclasses
-import yaml
 from api._config_manager import ConfigManagerImpl  # noqa
 
 

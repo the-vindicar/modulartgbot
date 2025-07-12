@@ -3,6 +3,7 @@ import typing as t
 import dataclasses
 import functools
 import logging
+from typing import Union
 
 from aiogram import Router, Dispatcher, Bot
 from aiogram.fsm.state import State
@@ -64,7 +65,7 @@ class RegistrationContext:
                          thread_id=None, business_connection_id=None)
         return await self.dispatcher.storage.get_state(key)
 
-    async def set_state_for_user(self, user_id: int, state: str | State | None, **data_updates) -> None:
+    async def set_state_for_user(self, user_id: int, state: Union[str, State, None], **data_updates) -> None:
         """Принудительно задаёт состояние пользователю. Может быть использовано вне контекста обработки сообщения."""
         key = StorageKey(bot_id=self.bot.id, chat_id=user_id, user_id=user_id,
                          thread_id=None, business_connection_id=None)
@@ -77,13 +78,13 @@ context: RegistrationContext = RegistrationContext()
 router: Router = Router(name='users')
 
 
-async def tg_is_registered(src: Message | CallbackQuery) -> bool:
+async def tg_is_registered(src: Union[Message, CallbackQuery]) -> bool:
     """Проверяет, что пользователь с этим TGID зарегистрирован и не заблокирован."""
     role = await context.repository.get_role_by_tg_id(src.from_user.id)
     return role not in (UserRoles.UNVERIFIED, UserRoles.BLOCKED)
 
 
-async def tg_is_site_admin(src: Message | CallbackQuery) -> bool:
+async def tg_is_site_admin(src: Union[Message, CallbackQuery]) -> bool:
     """Проверяет, что пользователь с этим TGID является администратором сайта."""
     role = await context.repository.get_role_by_tg_id(src.from_user.id)
     return role == UserRoles.SITE_ADMIN

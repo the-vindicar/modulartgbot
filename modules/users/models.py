@@ -41,10 +41,10 @@ class SiteUser(UserBase):
     __tablename__ = 'Users'
     id: Mapped[int] = mapped_column(Sequence('User_ID'), primary_key=True, autoincrement=True,
                                     comment='ID пользователя')
-    tgid: Mapped[int | None] = mapped_column(unique=True, nullable=True,
-                                             comment='ID пользователя в Telegram')
-    moodleid: Mapped[int | None] = mapped_column(unique=True, nullable=True,
-                                                 comment='ID пользователя в Moodle')
+    tgid: Mapped[t.Optional[int]] = mapped_column(unique=True, nullable=True,
+                                                  comment='ID пользователя в Telegram')
+    moodleid: Mapped[t.Optional[int]] = mapped_column(unique=True, nullable=True,
+                                                      comment='ID пользователя в Moodle')
     role: Mapped[UserRoles] = mapped_column(String(16), nullable=False, server_default=UserRoles.UNVERIFIED,
                                             comment='Роль пользователя')
     lastname: Mapped[str] = mapped_column(nullable=False, server_default='',
@@ -165,7 +165,7 @@ class UserRepository:
             await session.execute(stmt)
             await session.commit()
 
-    async def get_by_tgid(self, tgid: int) -> SiteUser | None:
+    async def get_by_tgid(self, tgid: int) -> t.Optional[SiteUser]:
         """Возвращает пользователя с указанным Telegram ID.
         :param tgid: Telegram ID пользователя.
         :returns: Пользователь, или None, если такого Telegram ID нет."""
@@ -173,14 +173,14 @@ class UserRepository:
             stmt = select(SiteUser).where(SiteUser.tgid == tgid)
             return await session.scalar(stmt)
 
-    async def get_by_id(self, userid: int) -> SiteUser | None:
+    async def get_by_id(self, userid: int) -> t.Optional[SiteUser]:
         """Возвращает пользователя с указанным ID.
         :param userid: ID пользователя.
         :returns: Пользователь, или None, если такого ID нет."""
         async with self.__sessionmaker() as session:
             return await session.get(SiteUser, ident=userid)
 
-    async def get_by_moodle_id(self, moodleid: int) -> SiteUser | None:
+    async def get_by_moodle_id(self, moodleid: int) -> t.Optional[SiteUser]:
         """Возвращает пользователя с указанным Moodle ID.
         :param moodleid: Moodle ID пользователя.
         :returns: Пользователь, или None, если такого Moodle ID нет."""
@@ -239,7 +239,7 @@ class UserRepository:
             result = await session.scalar(stmt)
         return UserRoles(result) if result is not None else UserRoles.UNVERIFIED
 
-    async def get_admin(self) -> SiteUser | None:
+    async def get_admin(self) -> t.Optional[SiteUser]:
         """Возвращает первого пользователя-администратора.
         :returns: Администратор, или None, если нет пользователя с ролью администратора."""
         async with self.__sessionmaker() as session:

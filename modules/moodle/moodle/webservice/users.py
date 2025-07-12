@@ -1,5 +1,5 @@
 """This submodule deals with retrieving users, be that in general or course participants."""
-from typing import Optional, Any, Collection
+from typing import Optional, Any, Collection, Union
 from enum import StrEnum
 
 from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
@@ -112,8 +112,8 @@ class UsersMixin:
 
     async def core_user_get_users_by_field(
             self: WebServiceAdapter,
-            field: UserByField | str,
-            values: Collection[int | str]
+            field: Union[UserByField, str],
+            values: Collection[Union[int, str]]
     ) -> list[RUserDescription]:
         """Find users by given filter.
         :param field: Field name.

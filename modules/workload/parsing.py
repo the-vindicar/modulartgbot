@@ -1,4 +1,5 @@
 """Реализует работу с Excel файлами."""
+import typing as t
 from collections import defaultdict
 import dataclasses
 import datetime
@@ -60,15 +61,15 @@ class LoadUnit:
     """Описание одного вида деятельности преподавателя."""
     course: str
     group: str
-    subgroup: int | None
-    education_type: EducationType | None
+    subgroup: t.Optional[int]
+    education_type: t.Optional[EducationType]
     education_level: str
-    activity: Activity | str
-    exam: ExamType | None
+    activity: t.Union[Activity, str]
+    exam: t.Optional[ExamType]
     year: int
-    semester: int | None
+    semester: t.Optional[int]
     student_count: int
-    week_count: int | None
+    week_count: t.Optional[int]
     worktime_hours: float
     other_hours: float
 
@@ -314,7 +315,7 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                 continue
             load.sort(key=lambda unit: (unit.education_level, unit.course, unit.activity))
             current_key = None
-            start: LoadUnit | None = None
+            start: t.Optional[LoadUnit] = None
             groups = []
             hours = []
             exam_hours = []

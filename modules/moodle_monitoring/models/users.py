@@ -1,4 +1,5 @@
 """Описывает модели пользователя и роли для кэша сущностей Moodle."""
+from typing import Optional
 from datetime import datetime
 
 from sqlalchemy import DateTime
@@ -15,7 +16,7 @@ class MoodleUser(MoodleBase):
     __tablename__ = 'MoodleUsers'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID пользователя')
     fullname: Mapped[str] = mapped_column(nullable=False, comment='Имя пользователя')
-    email: Mapped[str | None] = mapped_column(nullable=True, comment='E-mail пользователя')
+    email: Mapped[Optional[str]] = mapped_column(nullable=True, comment='E-mail пользователя')
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default='NOW()',
                                                 comment='Когда пользователь упоминался последний раз')
 

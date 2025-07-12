@@ -1,3 +1,4 @@
+"""Реализует простой загрузчик конфигов, извлекающий их содержимое из YAML-файлов."""
 import dataclasses
 from pathlib import Path
 import typing as t
@@ -46,6 +47,7 @@ class ConfigManagerImpl(ConfigManager):
 
     @classmethod
     def construct_instance(cls, configclass: t.Type[_T], data: dict[str, t.Any]) -> _T:
+        """Конструирует экземпляр переданного датакласса на основании переданных данных."""
         values: dict[str, t.Any] = {}
         for field in dataclasses.fields(configclass):
             base = t.get_origin(field.type)
