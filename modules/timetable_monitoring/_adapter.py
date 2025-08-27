@@ -102,7 +102,7 @@ class KSUTimetableAdapter:
             if semester_code != desired_semester:
                 continue
             week_number = int(item['типНедели'])
-            lesson_week_type = week_number % 2 + 1  # 1...2
+            lesson_week_type = 2 - week_number % 2  # 1...2
             lesson_dow_number = int(item['деньНедели'])  # 1...6
             period_number = int(item['номерЗанятия'])  # 1...N
             lesson_room = str(item['аудитория'])
