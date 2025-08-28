@@ -61,18 +61,19 @@ class LoadedModule:
     @staticmethod
     def sort_dependencies(loaded: list['LoadedModule']) -> None:
         """Сортирует список модулей так, чтобы зависимые модули были загружены после своих зависимостей."""
-        available: set[Type] = {quart.Quart}
+        available: set[Union[Type, str]] = {quart.Quart}
         ordered: list['LoadedModule'] = []
         unordered = loaded.copy()
         while unordered:
             added_any = False
             for i in range(len(unordered)-1, -1, -1):
-                if available.issuperset(unordered[i].requires):
+                if available.issuperset(unordered[i].requires):  # есть всё, что нужно для запуска модуля?
                     ordered.append(unordered[i])
                     available.update(unordered[i].provides)
+                    available.add(unordered[i].name)
                     del unordered[i]
                     added_any = True
-            if not added_any:
+            if not added_any:  # ни один из оставшихся модулей нельзя запустить!
                 unmet = []
                 for m in unordered:
                     missing = ', '.join(t.__qualname__ for t in (set(m.requires) - available))
@@ -85,8 +86,7 @@ class LoadedModule:
         if self.context is None:
             self.context = self.lifetime(self.api)
             value = await self.context.__anext__()
-            if value is PostInit:
-                self.has_post_init = True
+            self.has_post_init = value is PostInit
 
     async def run_post_init(self) -> None:
         """Если модуль требует пост-инициализацию, мы позволяем её выполнить. Иначе мы не делаем ничего."""
@@ -120,6 +120,8 @@ async def modules_lifespan(
 
     def add_api(api_provider: Union[Coroutine[Any, Any, _T], _T], api_class: Type[_T]) -> None:
         """Реализация, позволяющая зарегистрировать провайдера для предоставляемой зависимости."""
+        if api_class in module_api_providers:
+            raise KeyError(f'API {api_class.__name__} has already been provided.')
         if isinstance(api_provider, api_class):  # если нам передали объект, мы просто всегда возвращаем его.
             async def provider() -> _T:
                 """Возвращает экземпляр класса."""
@@ -127,8 +129,6 @@ async def modules_lifespan(
 
             module_api_providers[api_class] = provider  # type: ignore
         else:  # если нам передали корутину, мы будем вызывать её для получения зависимости
-            if api_class in module_api_providers:
-                raise KeyError(f'API {api_class.__name__} has already been provided.')
             module_api_providers[api_class] = api_provider
 
     def register_web_blueprint(blueprint):
