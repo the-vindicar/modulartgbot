@@ -376,20 +376,29 @@ class MoodleRepository:
         start = now - before
         end = now + after
         async with self.__sessionmaker() as session:
-            stmt = (select(MoodleAssignment.id).where(
-                # задание уже открыто
-                or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
-                or_(  # хотя бы один из сроков должен попадать в интервал
-                    # срок сдачи находится в интервале
-                    and_(MoodleAssignment.closing.isnot(None),
-                         start <= MoodleAssignment.closing,
-                         MoodleAssignment.closing <= end),
-                    # дата закрытия находится в интервале
-                    and_(MoodleAssignment.cutoff.isnot(None),
-                         start <= MoodleAssignment.cutoff,
-                         MoodleAssignment.cutoff <= end),
-                ),
-            ))
+            stmt = (
+                select(MoodleAssignment.id)
+                # выбираем только задания из активных курсов!
+                .join(MoodleCourse, onclause=and_(
+                    (MoodleAssignment.course_id == MoodleCourse.id),
+                    or_(MoodleCourse.starts.is_(None), MoodleCourse.starts <= now),
+                    or_(MoodleCourse.ends.is_(None), MoodleCourse.ends >= now),
+                ))
+                .where(
+                    # задание уже открыто
+                    or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
+                    or_(  # хотя бы один из сроков должен попадать в интервал
+                        # срок сдачи находится в интервале
+                        and_(MoodleAssignment.closing.isnot(None),
+                             start <= MoodleAssignment.closing,
+                             MoodleAssignment.closing <= end),
+                        # дата закрытия находится в интервале
+                        and_(MoodleAssignment.cutoff.isnot(None),
+                             start <= MoodleAssignment.cutoff,
+                             MoodleAssignment.cutoff <= end),
+                    ),
+                )
+            )
             result = await session.scalars(stmt)
             return [assignment_id(aid) for aid in result.all()]
 
@@ -398,6 +407,7 @@ class MoodleRepository:
                                                         ) -> list[assignment_id]:
         """Загружает список ID заданий, которые уже открыты, но НЕ завершаются (срок сдачи или закрытие)
         в указанный интервал времени. Задания, для которых не указано время закрытия, всегда попадут в этот список.
+        Если курс ещё не доступен или уже не доступен, его задания игнорируются.
         :param now: Текущий момент времени (внутри интервала).
         :param before: Отступ от начала интервала до текущего момента.
         :param after: Отступ от текущего момента до конца интервала.
@@ -406,20 +416,29 @@ class MoodleRepository:
         start = now - before
         end = now + after
         async with self.__sessionmaker() as session:
-            stmt = (select(MoodleAssignment.id).where(
-                # задание уже открыто
-                or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
-                and_(  # ни один из сроков не должен попадать в интервал
-                    # срок сдачи неизвестен или не находится в интервале
-                    or_(MoodleAssignment.closing.is_(None),
-                        start > MoodleAssignment.closing,
-                        MoodleAssignment.closing > end),
-                    # дата закрытия неизвестна или не находится в интервале
-                    or_(MoodleAssignment.cutoff.is_(None),
-                        start > MoodleAssignment.cutoff,
-                        MoodleAssignment.cutoff > end),
-                ),
-            ))
+            stmt = (
+                select(MoodleAssignment.id)
+                # выбираем только задания из активных курсов!
+                .join(MoodleCourse, onclause=and_(
+                    (MoodleAssignment.course_id == MoodleCourse.id),
+                    or_(MoodleCourse.starts.is_(None), MoodleCourse.starts <= now),
+                    or_(MoodleCourse.ends.is_(None), MoodleCourse.ends >= now),
+                ))
+                .where(
+                    # задание уже открыто
+                    or_(MoodleAssignment.opening.is_(None), MoodleAssignment.opening <= now),
+                    and_(  # ни один из сроков не должен попадать в интервал
+                        # срок сдачи неизвестен или не находится в интервале
+                        or_(MoodleAssignment.closing.is_(None),
+                            start > MoodleAssignment.closing,
+                            MoodleAssignment.closing > end),
+                        # дата закрытия неизвестна или не находится в интервале
+                        or_(MoodleAssignment.cutoff.is_(None),
+                            start > MoodleAssignment.cutoff,
+                            MoodleAssignment.cutoff > end),
+                    ),
+                )
+            )
             result = await session.scalars(stmt)
             return [assignment_id(aid) for aid in result.all()]
     # endregion
