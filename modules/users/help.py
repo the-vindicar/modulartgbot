@@ -62,13 +62,16 @@ def prepare_command_list(dispatcher: Dispatcher) -> CommandsInfo:
                     if isinstance(cmd_pattern, BotCommand):
                         info = BotCommand(command=f'{cmd_pattern.command}',
                                           description=cmd_pattern.description or docstring)
-                        log.debug('    BotCommand "%s" defined for roles %r', info.command, roles)
+                        log.debug('    BotCommand "%s" defined for roles %s', info.command,
+                                  ', '.join([r.name for r in roles]))
                     elif isinstance(cmd_pattern, re.Pattern):
                         info = BotCommand(command=f'{cmd_pattern.pattern}', description=docstring)
-                        log.debug('    Regexp command "%s" defined for roles %r', info.command, roles)
+                        log.debug('    Regexp command "%s" defined for roles %s', info.command,
+                                  ', '.join([r.name for r in roles]))
                     else:
                         info = BotCommand(command=f'{cmd_pattern}', description=docstring)
-                        log.debug('    String command "%s" defined for roles %r', info.command, roles)
+                        log.debug('    String command "%s" defined for roles %s', info.command,
+                                  ', '.join([r.name for r in roles]))
                     for role in roles:
                         commands[role].append(info)
         else:

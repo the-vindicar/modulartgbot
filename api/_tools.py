@@ -102,6 +102,14 @@ class IntervalScheduler(t.Generic[_T]):
             ts = start.astimezone(datetime.timezone.utc) + self.duration
             self.events.append((ts, tuple(objects)))
 
+    def pop_all_objects(self) -> list[_T]:
+        """Извлекает и возвращает список всех оставшихся объектов."""
+        all_objs = []
+        for _ts, objects in self.events:
+            all_objs.extend(objects)
+        self.events.clear()
+        return all_objs
+
     def pop_triggered_objects(self, now: datetime.datetime) -> list[_T]:
         """Извлекает и возвращает список объектов, которые следует опросить к моменту now. Может вернуть пустой список!
         Объекты удаляются из списка отслеживаемых, чтобы избежать их повторного опроса.

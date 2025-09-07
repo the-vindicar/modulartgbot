@@ -46,24 +46,27 @@ class Scheduler:
 
     async def scheduler_task(self) -> t.NoReturn:
         """Выполняет бесконечный цикл ожидания и опроса сервера Moodle на предмет изменений."""
+        forced = False
         while True:
-            # TODO: вернуть обратно правильное время. Это только для тестирования!
-            # now = datetime.datetime.now(datetime.timezone.utc)
-            now = datetime.datetime(2025, 5, 26, 12, 0, 0, tzinfo=datetime.timezone.utc)
-            await self._check_courses(now)
-            await self._check_assignments(now)
-            await self._check_submissions_deadline(now)
-            await self._check_submissions_active(now)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            await self._check_courses(now, forced)
+            await self._check_assignments(now, forced)
+            await self._check_submissions_deadline(now, forced)
+            await self._check_submissions_active(now, forced)
             try:
                 self.wakeup.clear()
                 await asyncio.wait_for(self.wakeup.wait(), self.__cfg.wakeup_interval_seconds)
+                forced = True
             except asyncio.TimeoutError:
-                pass
+                forced = False
 
-    async def _check_courses(self, now: datetime.datetime) -> None:
+    async def _check_courses(self, now: datetime.datetime, forced: bool) -> None:
         if self.__update_courses.is_empty():
             self.__update_courses.set_queried_objects([None], now)
-        c = self.__update_courses.pop_triggered_objects(now)
+        if forced:
+            c = self.__update_courses.pop_all_objects()
+        else:
+            c = self.__update_courses.pop_triggered_objects(now)
         if c:
             try:
                 self.__log.debug('Updating courses we are subscribed to...')
@@ -78,7 +81,7 @@ class Scheduler:
             else:
                 self.__log.debug('Courses updated successfully.')
 
-    async def _check_assignments(self, now: datetime.datetime) -> None:
+    async def _check_assignments(self, now: datetime.datetime, forced: bool) -> None:
         """Проверяет, нет ли измений в заданиях отслеживаемых курсов."""
         if self.__update_assignments.is_empty():
             try:
@@ -89,7 +92,10 @@ class Scheduler:
                 self.__log.debug('%d open courses found, tracking: %s', len(course_ids),
                                  ', '.join(f'#{cid}' for cid in course_ids))
                 self.__update_assignments.set_queried_objects(course_ids, now)
-        course_ids = self.__update_assignments.pop_triggered_objects(now)
+        if forced:
+            course_ids = self.__update_assignments.pop_all_objects()
+        else:
+            course_ids = self.__update_assignments.pop_triggered_objects(now)
         if course_ids:
             try:
                 self.__log.debug('Updating assignments for courses %s',
@@ -107,7 +113,7 @@ class Scheduler:
                 self.__log.info('Assignments updated successfully for course(s) %s',
                                 ', '.join(f'#{cid}({len(assigns)})' for cid, assigns in known_assignments.items()))
 
-    async def _check_submissions_active(self, now: datetime.datetime) -> None:
+    async def _check_submissions_active(self, now: datetime.datetime, forced: bool) -> None:
         """Проверяет, нет ли новых ответов на задания, которые завершаются ещё не скоро."""
         if self.__update_open_submissions.is_empty():
             try:
@@ -121,11 +127,14 @@ class Scheduler:
             else:
                 self.__log.debug('Tracking %d open non-deadline assignments.', len(assigns))
                 self.__update_open_submissions.set_queried_objects(assigns, now)
-        assign_ids = self.__update_open_submissions.pop_triggered_objects(now)
+        if forced:
+            assign_ids = self.__update_open_submissions.pop_all_objects()
+        else:
+            assign_ids = self.__update_open_submissions.pop_triggered_objects(now)
         if assign_ids:
             await self._update_submissions_for(assign_ids)
 
-    async def _check_submissions_deadline(self, now: datetime.datetime) -> None:
+    async def _check_submissions_deadline(self, now: datetime.datetime, forced: bool) -> None:
         """Проверяет, нет ли новых ответов на задания, которые скоро завершатся."""
         if self.__update_deadline_submissions.is_empty():
             try:
@@ -139,9 +148,12 @@ class Scheduler:
             else:
                 self.__log.debug('Tracking %d open deadline assignments.', len(assigns))
                 self.__update_deadline_submissions.set_queried_objects(assigns, now)
+        if forced:
+            assign_ids = self.__update_deadline_submissions.pop_all_objects()
+        else:
             assign_ids = self.__update_deadline_submissions.pop_triggered_objects(now)
-            if assign_ids:
-                await self._update_submissions_for(assign_ids)
+        if assign_ids:
+            await self._update_submissions_for(assign_ids)
 
     async def _update_submissions_for(self, assign_ids: t.Collection[assignment_id]):
         """Скачивает и сохраняет ответы на указанные задания."""
