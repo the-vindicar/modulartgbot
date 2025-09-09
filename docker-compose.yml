@@ -6,6 +6,8 @@ services:
   postgresql:
     hostname: postgresql
     container_name: postgresql
+    ports:
+      - "55432:5432"  # TODO: удалить, это только для отладки
     image: postgres:latest
     environment:
       - PGUSER=postgres
