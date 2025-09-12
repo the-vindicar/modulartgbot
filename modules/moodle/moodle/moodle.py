@@ -1,6 +1,5 @@
 """Provides a class that can be used to interact with a Moodle instance using Web API."""
 from typing import Any, Union, Optional, overload, Type
-import asyncio
 import datetime
 import enum
 import logging
@@ -175,7 +174,7 @@ class Moodle:
         if tz not in ('99', None):  # 99 means "use server timezone". Which we don't know anyway!
             self.timezone = datetime.timezone(datetime.timedelta(hours=float(tz)))
 
-    async def get_download_fileobj(self, fileurl: str) -> asyncio.StreamReader:
+    async def get_download_response(self, fileurl: str) -> aiohttp.ClientResponse:
         """Takes a file URL, adds our token and creates a :class:`asyncio.StreamReader` to download it.
         :param fileurl: Full file URL, including scheme, hostname, etc.
         :returns: A :class:`asyncio.StreamReader` object that can be used to download the file."""
@@ -187,7 +186,7 @@ class Moodle:
             raise MoodleError(message=f'Connection failed: {err!s}', url=fileurl)
         else:
             if r.status == 200:
-                return r.content
+                return r
             else:
                 raise MoodleError(url=fileurl, message=f'Failed to receive file: [{r.status}]', data=await r.text())
 

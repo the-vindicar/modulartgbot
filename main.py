@@ -39,7 +39,7 @@ async def main():
         modules_context = modules_lifespan(
             webapp=app,
             cfg=cfg,
-            module_whitelist=['db', 'telegram', 'moodle', 'users', 'users_extra']
+            module_whitelist=['db', 'telegram', 'moodle', 'moodle_monitoring', 'users', 'users_extra']
         )
         async with modules_context:
             yield

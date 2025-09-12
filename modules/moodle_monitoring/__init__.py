@@ -22,9 +22,8 @@ __all__ = [
 ]
 requires = [AsyncEngine, MoodleAdapter, Bot, Dispatcher]
 provides = [MoodleRepository]
-
-
 tgrouter = Router(name='users_extra')
+
 
 async def lifetime(api: CoreAPI):
     """Контекст работы модуля мониторинга Moodle. Код до yield инициализирует работу, после - завершает."""

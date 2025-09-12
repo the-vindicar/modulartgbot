@@ -1,0 +1,13 @@
+refresh_interval_seconds: 120
+ignore_files_larger_than: 4194304
+ignore_files_older_than_days: 60
+plaintext:
+  mimetypes:
+    - "text/plain"
+  masks:
+    - "*.txt"
+    - "*.cs"
+    - "*.cpp"
+    - "*.h"
+    - "*.py"
+    - "*.pyw"
