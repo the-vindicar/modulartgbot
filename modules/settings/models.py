@@ -22,7 +22,7 @@ class Settings(DBModel):
     - ``entity_id``: Идентификатор сущности, к которой прикреплены настройки.
     - ``data``: Настройки в формате JSON.
     """
-    __tablename__ = 'Settings'
+    __tablename__ = 'stored_settings'
     namespace: Mapped[str] = mapped_column(String(32), primary_key=True,
                                            comment='Пространство имён')
     entity_type: Mapped[str] = mapped_column(String(32), primary_key=True,

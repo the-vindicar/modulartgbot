@@ -12,7 +12,7 @@ __all__ = ['MoodleAssignment', 'MoodleSubmission', 'MoodleSubmittedFile']
 
 
 class MoodleAssignment(MoodleBase):
-    __tablename__ = 'MoodleAssignments'
+    __tablename__ = 'moodle_assignments'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID задания')
     course_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleCourse.id, ondelete="cascade"),
@@ -27,7 +27,7 @@ class MoodleAssignment(MoodleBase):
 
 
 class MoodleSubmission(MoodleBase):
-    __tablename__ = 'MoodleSubmissions'
+    __tablename__ = 'moodle_submissions'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID ответа на задание')
     assignment_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleAssignment.id, ondelete='cascade'),
@@ -42,8 +42,8 @@ class MoodleSubmission(MoodleBase):
 
 
 class MoodleSubmittedFile(MoodleBase):
-    __tablename__ = 'MoodleSubmittedFiles'
-    id: Mapped[int] = mapped_column(Sequence('MoodleSubmittedFiles_id', cycle=True), nullable=False,
+    __tablename__ = 'moodle_submitted_files'
+    id: Mapped[int] = mapped_column(Sequence('MoodleSubmittedFiles_id', cycle=True), nullable=False, unique=True,
                                     comment='Уникальный номер файла (не ID в Moodle)')
     submission_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleSubmission.id, ondelete='cascade'),

@@ -13,7 +13,7 @@ __all__ = ['MoodleUser', 'MoodleRole']
 
 class MoodleUser(MoodleBase):
     """Пользователь на сервере Moodle. Они определяются в пределах сервера в целом."""
-    __tablename__ = 'MoodleUsers'
+    __tablename__ = 'moodle_users'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID пользователя')
     fullname: Mapped[str] = mapped_column(nullable=False, comment='Имя пользователя')
     email: Mapped[Optional[str]] = mapped_column(nullable=True, comment='E-mail пользователя')
@@ -23,6 +23,6 @@ class MoodleUser(MoodleBase):
 
 class MoodleRole(MoodleBase):
     """Роли пользователей на сервере Moodle. Они определяются в пределах сервера в целом."""
-    __tablename__ = 'MoodleRoles'
+    __tablename__ = 'moodle_roles'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID роли')
     name: Mapped[str] = mapped_column(nullable=False, comment='Название роли')

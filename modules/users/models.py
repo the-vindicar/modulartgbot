@@ -38,7 +38,7 @@ class UserBase(DBModel):
 
 
 class SiteUser(UserBase):
-    __tablename__ = 'Users'
+    __tablename__ = 'users'
     id: Mapped[int] = mapped_column(Sequence('User_ID'), primary_key=True, autoincrement=True,
                                     comment='ID пользователя')
     tgid: Mapped[t.Optional[int]] = mapped_column(unique=True, nullable=True,
@@ -109,7 +109,7 @@ class SiteUser(UserBase):
 
 
 class OneTimeCode(UserBase):
-    __tablename__ = 'OneTimeCodes'
+    __tablename__ = 'one_time_codes'
     intent: Mapped[str] = mapped_column(primary_key=True,
                                         comment='Назначение одноразового кода')
     user_id: Mapped[int] = mapped_column(ForeignKey(SiteUser.id, ondelete='cascade'), primary_key=True,

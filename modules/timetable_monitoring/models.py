@@ -16,7 +16,7 @@ class TimetableBase(DBModel):
 
 
 class TimetableCache(TimetableBase):
-    __tablename__ = 'TimetableCache'
+    __tablename__ = 'timetable_cache'
     week: Mapped[int] = mapped_column(primary_key=True, comment='Неделя (1 - нечётная, 2 - чётная, 0 - обе)')
     day: Mapped[int] = mapped_column(primary_key=True, comment='День (1-6)')
     period: Mapped[int] = mapped_column(primary_key=True, comment='Пара (1-8)')
@@ -28,7 +28,7 @@ class TimetableCache(TimetableBase):
 
 
 class TeacherUpdate(TimetableBase):
-    __tablename__ = 'TeacherUpdates'
+    __tablename__ = 'teacher_updates'
     teacher: Mapped[str] = mapped_column(primary_key=True, comment='Фамилия И.О. преподавателя')
     updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                               comment='Когда расписание изменилось последний раз')

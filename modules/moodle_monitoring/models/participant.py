@@ -11,7 +11,7 @@ __all__ = ['MoodleParticipant', 'MoodleParticipantGroups', 'MoodleParticipantRol
 
 
 class MoodleParticipant(MoodleBase):
-    __tablename__ = 'MoodleParticipants'
+    __tablename__ = 'moodle_participants'
     course_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleCourse.id, ondelete='cascade'),
         primary_key=True, comment='ID курса')
@@ -21,7 +21,7 @@ class MoodleParticipant(MoodleBase):
 
 
 class MoodleParticipantRoles(MoodleBase):
-    __tablename__ = 'MoodleParticipantRoles'
+    __tablename__ = 'moodle_participant_roles'
     course_id: Mapped[int] = mapped_column(primary_key=True, comment='ID курса')
     user_id: Mapped[int] = mapped_column(primary_key=True, comment='ID пользователя-участника')
     role_id: Mapped[int] = mapped_column(
@@ -37,7 +37,7 @@ class MoodleParticipantRoles(MoodleBase):
 
 
 class MoodleParticipantGroups(MoodleBase):
-    __tablename__ = 'MoodleParticipantGroups'
+    __tablename__ = 'moodle_participant_groups'
     course_id: Mapped[int] = mapped_column(primary_key=True, comment='ID курса')
     user_id: Mapped[int] = mapped_column(primary_key=True, comment='ID пользователя-участника')
     group_id: Mapped[int] = mapped_column(

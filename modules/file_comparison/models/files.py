@@ -1,7 +1,7 @@
 """Описания моделей данных о файлах, хранимых в БД, и их схожести."""
 from datetime import datetime
 
-from sqlalchemy import ForeignKeyConstraint, DateTime, VARCHAR, BLOB
+from sqlalchemy import ForeignKeyConstraint, DateTime, VARCHAR, LargeBinary
 from sqlalchemy.orm import Mapped, mapped_column
 
 from api import DBModel
@@ -18,7 +18,7 @@ class FileInfoBase(DBModel):
 
 
 class FileDigest(FileInfoBase):
-    __tablename__ = 'FileDigests'
+    __tablename__ = 'file_digests'
     file_id: Mapped[int] = mapped_column(primary_key=True, comment='ID исходного файла')
     digest_type: Mapped[str] = mapped_column(DigestNameType, primary_key=True, comment='Тип дайджеста')
     user_id: Mapped[int] = mapped_column(nullable=False, comment='ID владельца файла')
@@ -31,7 +31,7 @@ class FileDigest(FileInfoBase):
                                                     comment='Время загрузки файла')
     created: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
                                               comment='Момент создания дайджеста')
-    content: Mapped[bytes] = mapped_column(BLOB(), nullable=True,
+    content: Mapped[bytes] = mapped_column(LargeBinary(), nullable=True,
                                            comment='Сжатое gzip содержимое дайджеста, если доступно.')
     __table_args__ = (
         ForeignKeyConstraint(
@@ -43,7 +43,7 @@ class FileDigest(FileInfoBase):
 
 
 class FileWarning(FileInfoBase):
-    __tablename__ = 'FileWarnings'
+    __tablename__ = 'file_warnings'
     file_id: Mapped[int] = mapped_column(primary_key=True, comment='ID файла')
     warning_type: Mapped[str] = mapped_column(WarningNameType, primary_key=True, comment='Тип предупреждения')
     warning_info: Mapped[str] = mapped_column(nullable=False, comment='Текст предупреждения')
@@ -57,7 +57,7 @@ class FileWarning(FileInfoBase):
 
 
 class FileComparison(FileInfoBase):
-    __tablename__ = 'FileComparisons'
+    __tablename__ = 'file_comparisons'
     older_file_id: Mapped[int] = mapped_column(primary_key=True, comment='ID оригинального файла')
     older_digest_type: Mapped[str] = mapped_column(DigestNameType, primary_key=True,
                                                    comment='Тип дайджеста оригинального файла')

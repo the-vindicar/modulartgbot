@@ -10,7 +10,7 @@ __all__ = ['MoodleCourse', 'MoodleGroup']
 
 
 class MoodleCourse(MoodleBase):
-    __tablename__ = 'MoodleCourses'
+    __tablename__ = 'moodle_courses'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID курса')
     shortname: Mapped[str] = mapped_column(nullable=False, comment='Короткое название курса')
     fullname: Mapped[str] = mapped_column(nullable=False, comment='Полное название курса')
@@ -21,7 +21,7 @@ class MoodleCourse(MoodleBase):
 
 
 class MoodleGroup(MoodleBase):
-    __tablename__ = 'MoodleGroups'
+    __tablename__ = 'moodle_groups'
     id: Mapped[int] = mapped_column(primary_key=True, comment='ID группы (уникальное в рамках сервера)')
     course_id: Mapped[int] = mapped_column(
         ForeignKey(MoodleCourse.id, ondelete='cascade'),
