@@ -22,7 +22,7 @@ __all__ = [
 ]
 requires = [AsyncEngine, MoodleAdapter, Bot, Dispatcher]
 provides = [MoodleRepository]
-tgrouter = Router(name='users_extra')
+tgrouter = Router(name='moodle_monitoring')
 
 
 async def lifetime(api: CoreAPI):
