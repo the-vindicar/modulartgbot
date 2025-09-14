@@ -1,6 +1,6 @@
 wakeup_interval_seconds: 60
 courses:
-  load_inprogress_only: false
+  load_inprogress_only: true
   teacher_role_ids: [3, 4]
   db_batch_size: 25
   update_interval_seconds: 43200

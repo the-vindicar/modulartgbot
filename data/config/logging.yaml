@@ -10,5 +10,7 @@ levels:
   modules.telegram: INFO
   modules.moodle: INFO
   modules.db: INFO
-  modules.assignmon: DEBUG
-  modules.timetablemon: DEBUG
+  modules.timetablemon: INFO
+  modules.moodlemon: INFO
+  modules.users: INFO
+  modules.filecomp: DEBUG
