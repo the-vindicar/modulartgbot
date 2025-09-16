@@ -116,8 +116,8 @@ class RSubmission(BaseModel):
     timestarted: Optional[Timestamp]
     status: SubmissionStatus
     groupid: int
-    assignment: Optional[PositiveInt]
-    latest: Optional[int]
+    assignment: Optional[PositiveInt] = None
+    latest: Optional[int] = None
     plugins: list[RSubmissionPlugin] = Field(default_factory=list)
     gradingstatus: Optional[GradingStatus] = None
 

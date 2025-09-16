@@ -123,7 +123,7 @@ class MoodleAdapter(Moodle):
                                         filename=raw_file.filename,
                                         mimetype=raw_file.mimetype,
                                         filesize=raw_file.filesize,
-                                        url=raw_file.fileurl,
+                                        url=str(raw_file.fileurl),
                                         uploaded=self.timestamp2datetime(raw_file.timemodified)
                                     )
                                     files.append(file)
