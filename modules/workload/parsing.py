@@ -123,7 +123,8 @@ def parse_workload(ws: Worksheet) -> dict[str, TeacherWorkload]:
         else:
             load_type = WorkloadType.MAIN
         cell = ws.cell(row=row, column=lesson_col)
-        lesson_name, _, subgroup_name = cell.value.partition(', п/г ')
+        lesson_name, *subgroup_names = cell.value.split(', п/г ')
+        subgroup_name = subgroup_names[-1] if subgroup_names else ''
         cell = ws.cell(row=row, column=group_col)
         group = cell.value
         cell = ws.cell(row=row, column=teachtype_col)
@@ -358,7 +359,7 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                 hours.append(unit.worktime_hours)
                 exam_hours.append(unit.other_hours)
                 # курсовые и т.п. обычно прописаны на каждого студента
-                if unit.student_count > 1 and unit.subgroup is not None:
+                if unit.student_count > 1 and unit.subgroup is not None and 1 <= unit.subgroup <= len(GROUP_NAMES):
                     groups.append(unit.group + GROUP_NAMES[unit.subgroup-1])
                 else:
                     groups.append(unit.group)
