@@ -28,8 +28,8 @@ async def lifetime(api: CoreAPI):
     @dataclasses.dataclass
     class MoodleConfig:
         """Конфигурация связи с сервером Moodle."""
-        base_url: str
-        user: str
+        base_url: str = None
+        user: str = None
         pwd: str = None
         timezone: str = 'Europe/Moscow'
         message_poll_seconds: int = 15
@@ -37,7 +37,10 @@ async def lifetime(api: CoreAPI):
     log = logging.getLogger(name=f'modules.moodle')
 
     cfg = await api.config.load('moodle', MoodleConfig)
-    moodle_instance = MoodleAdapter(cfg.base_url, cfg.user, os.getenv('MOODLE_PWD', cfg.pwd), log=log)
+    moodle_instance = MoodleAdapter(os.getenv('MOODLE_URL', cfg.base_url),
+                                    os.getenv('MOODLE_USER', cfg.user),
+                                    os.getenv('MOODLE_PWD', cfg.pwd),
+                                    log=log)
     moodle_instance.timezone = zoneinfo.ZoneInfo(cfg.timezone)
     async with moodle_instance:
         try:
