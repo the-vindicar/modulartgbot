@@ -33,10 +33,10 @@ services:
       - .env
     environment:
       - MULTIBOT_DATA=/data/multibot
+    volumes:
+      - multibot-data:/data/multibot
     tty: true
     init: true
     depends_on:
       postgresql:
         condition: service_healthy
-    volumes:
-      - multibot-data:/data/multibot
