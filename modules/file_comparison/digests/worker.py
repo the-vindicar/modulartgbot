@@ -9,6 +9,7 @@ import importlib
 import logging
 import logging.handlers
 import multiprocessing
+import threading
 import os
 from pathlib import Path
 
@@ -84,6 +85,7 @@ class Worker:
         self._settings = settings.copy()
         self._log: t.Optional[logging.Logger] = None
         self._initialized = False
+        print(f'Worker @{os.getpid()}/{threading.get_native_id()} __init__()')
 
     def initializer(self, log_name: str, log_queue: multiprocessing.Queue) -> None:
         """Импортирует и инициализирует плагины в дочерних процессах."""
@@ -117,7 +119,7 @@ class Worker:
                 self._log.debug('Comparer %s ready.', cls.__name__)
                 self._comparers.append(instance)
         self._initialized = True
-        self._log.debug('Worker completed initialization')
+        self._log.debug(f'Worker @{os.getpid()}/{threading.get_native_id()}/{id(self)} completed initialization\n{repr(self.__dict__)}')
 
     def extract_digests(self, file: FileToCompute, content: bytes) -> ComputeDigestResponse:
         """Обрабатывает один файл и извлекает из него все возможные дайджесты.
@@ -126,7 +128,8 @@ class Worker:
         :param content: Содержимое обрабатываемого файла.
         :return: Результат обработки файла."""
         if not self._initialized:
-            raise RuntimeError(f'Initializer has not been run for worker {os.getpid()}')
+            raise RuntimeError('Initializer has not been run for worker '
+                               f'{os.getpid()}/{threading.get_native_id()}/{id(self)}\n{repr(self.__dict__)}')
         digests: dict[str, t.Optional[bytes]] = {n: None for n in file.digest_types}
         warns = {}
         errors = []
@@ -168,7 +171,8 @@ class Worker:
         :return: Тип дайджеста; ID старого файла; ID нового файла;
         степень сходства или объект исключения (при ошибке)."""
         if not self._initialized:
-            raise RuntimeError(f'Initializer has not been run for worker @{os.getpid()}')
+            raise RuntimeError('Initializer has not been run for worker '
+                               f'@{os.getpid()}/{threading.get_native_id()}/{id(self)}\n{repr(self.__dict__)}')
         for plugin in self._comparers:
             if pair.digest_type in plugin.digest_types():
                 try:

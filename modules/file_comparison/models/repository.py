@@ -36,6 +36,25 @@ class FileToCompute:
     file_size: int
     digest_types: frozenset[str]
 
+    def make_empty_digests(self) -> list[FileDigest]:
+        """Генерирует список пустых дайджестов для этого файла. Используется, если файл недоступен."""
+        return [
+            FileDigest(
+                file_id=self.file_id,
+                digest_type=digest_type,
+                user_id=self.user_id,
+                user_name=self.user_name,
+                assignment_id=self.assignment_id,
+                submission_id=self.submission_id,
+                file_name=self.file_name,
+                file_url=self.file_url,
+                file_uploaded=self.file_uploaded,
+                created=datetime.now(timezone.utc),
+                content=None
+            )
+            for digest_type in self.digest_types
+        ]
+
 
 @dataclass
 class DigestPair:

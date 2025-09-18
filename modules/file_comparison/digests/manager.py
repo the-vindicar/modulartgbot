@@ -37,7 +37,7 @@ class DigestManager:
                 log.warning('Plugin %s not found, ignoring settings.', k)
                 del cfg.plugin_settings[k]
         self._available_digests = frozenset(available_digest_types)
-        self._worker = Worker(cfg.plugin_settings)
+        self._worker: t.Optional[Worker] = None
         self._pool: t.Optional[concurrent.futures.Executor] = None
         self._log_queue: multiprocessing.Queue = multiprocessing.Queue()
         self._listener = logging.handlers.QueueListener(self._log_queue, *logging.root.handlers,
@@ -45,6 +45,7 @@ class DigestManager:
         self.batch_size: int = 4
 
     async def __aenter__(self) -> t.Self:
+        self._worker = Worker(self.cfg.plugin_settings)
         self._pool = concurrent.futures.ProcessPoolExecutor(
             max_workers=1,
             initializer=self._worker.initializer,
@@ -75,14 +76,21 @@ class DigestManager:
         async for file_batch in aiobatch(missing_files, self.batch_size):  # обрабатываем файлы порциями
             futures.clear()
             for file in file_batch:
+                if not file.digest_types:
+                    self._log.warning('Ignoring file %s due because it specified no missing digests.',
+                                      file.file_url)
+                    continue
                 if self.cfg.ignore_files_larger_than and file.file_size > self.cfg.ignore_files_larger_than:
                     self._log.info('Ignoring file %s due to its large size of %d bytes.',
                                    file.file_url, file.file_size)
+                    yield file.make_empty_digests(), []
                     continue
                 age = now - file.file_uploaded
                 if max_age and age > max_age:
                     self._log.info('Ignoring file %s because it is too old (uploaded %s ago).',
                                    file.file_url, age)
+                    yield file.make_empty_digests(), []
+                    continue
                 try:
                     dlresponse = await self._moodle.get_download_response(file.file_url)
                     self._log.debug('Downloading file %s from %s', file.file_name, file.file_url)
@@ -103,23 +111,7 @@ class DigestManager:
                                       file.file_name, file.file_url, err)
                     if err.errorcode in ('filenotfound', 404):  # если файл не найден, игнорируем его в будущем
                         self._log.warning('Ignoring file %s in the future', file.file_name)
-                        digests = [
-                            FileDigest(
-                                file_id=file.file_id,
-                                digest_type=digest_type,
-                                user_id=file.user_id,
-                                user_name=file.user_name,
-                                assignment_id=file.assignment_id,
-                                submission_id=file.submission_id,
-                                file_name=file.file_name,
-                                file_url=file.file_url,
-                                file_uploaded=file.file_uploaded,
-                                created=datetime.datetime.now(datetime.timezone.utc),
-                                content=None
-                            )
-                            for digest_type in file.digest_types
-                        ]
-                        yield digests, []
+                        yield file.make_empty_digests(), []
                 except Exception as err:
                     self._log.error('Unexpected error when processing file %s ( %s )',
                                     file.file_name, file.file_url, exc_info=err)
@@ -188,7 +180,8 @@ class DigestManager:
                 response: t.Union[Exception, ComputeSimilarityResponse]
                 if isinstance(response, Exception):
                     self._log.warning('Unexpected error while comparing digests', exc_info=response)
-                    continue
+                    raise response  # TODO:
+                    # continue
                 if response.similarity is None:
                     self._log.warning('Failed to compare two files using digest "%s"',
                                       response.digest_type, exc_info=response.error)

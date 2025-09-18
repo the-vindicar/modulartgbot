@@ -69,7 +69,7 @@ async def setup_logging(cfg: ConfigManager, app: quart.Quart):
     sys.excepthook = lambda et, ev, etb: logging.root.critical('Uncaught exception:', exc_info=(et, ev, etb))
     formatter_class = ReducedTracebackFormatter if logcfg.reduced_stacktraces else logging.Formatter
 
-    conformatter = formatter_class(fmt='[%(levelname)8s] %(name)s@%(process)d: %(message)s')
+    conformatter = formatter_class(fmt='%(asctime)s [%(levelname)8s] %(name)s@%(process)d: %(message)s')
     fileformatter = formatter_class(fmt='%(asctime)s [%(levelname)8s] %(name)s@%(process)d: %(message)s')
 
     chandler = logging.StreamHandler()
