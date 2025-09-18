@@ -3,7 +3,8 @@ import typing as t
 import difflib
 from fnmatch import fnmatch
 
-from ..base import DigestExtractorABC, DigestComparerABC
+from ._base import DigestExtractorABC, DigestComparerABC
+from ._homoglyphs import normalize_text
 
 
 class PlaintextExtractor(DigestExtractorABC):
@@ -36,7 +37,18 @@ class PlaintextExtractor(DigestExtractorABC):
             part = parts[i].strip(b' \t\r\n')
             if not part:
                 del parts[i]
-        return {'plaintext': b'\n'.join(parts)}, {}
+            else:
+                parts[i] = part
+        text = b'\n'.join(parts)
+        try:
+            string = text.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                string = text.decode('windows-1251')
+            except UnicodeDecodeError:
+                return {'plaintext': text}, {}
+        string = normalize_text(string)
+        return {'plaintext': string.encode('utf-8')}, {}
 
 
 class PlaintextComparer(DigestComparerABC):

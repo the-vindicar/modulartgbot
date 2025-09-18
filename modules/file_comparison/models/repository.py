@@ -104,37 +104,50 @@ class FileDataRepository:
         :returns: Последовательность описаний файлов. Записи для одного и того же файла идут подряд.
         """
         available_set = frozenset(available_digest_types)
+        if not available_set:
+            self.__log.warning('Requested missing digests with NO digest types specified.')
+            return
         async with self.__sessionmaker() as session:
             # загружаем сведения о дайджестах указанных файлов
+            # столбец-агрегат возвращает массив типов дайджестов, которые рассчитаны для этого файла
             existing_digests_column = func.array_agg(aggregate_order_by(
                 FileDigest.digest_type, FileDigest.digest_type.asc()
             )).label('existing_digests')
-
-            stmt = (
+            subquery = (
                 select(
-                    MoodleSubmittedFile,
-                    MoodleUser.fullname,
-                    existing_digests_column
+                    MoodleSubmittedFile.id,
+                    existing_digests_column,
                 )
                 .select_from(MoodleSubmittedFile)
-                .join(MoodleUser, onclause=(MoodleUser.id == MoodleSubmittedFile.user_id))
                 .join(FileDigest, onclause=and_(
                     FileDigest.file_id == MoodleSubmittedFile.id,
                     FileDigest.digest_type.in_(available_digest_types)
                 ))
+                .group_by(MoodleSubmittedFile.id)
             )
             if max_age is not None:
                 oldest = datetime.now(self.TZ) - max_age
-                stmt = stmt.where(MoodleSubmittedFile.uploaded >= oldest)
+                subquery = subquery.where(MoodleSubmittedFile.uploaded >= oldest)
             if max_size is not None:
-                stmt = stmt.where(MoodleSubmittedFile.filesize <= max_size)
-            stmt = stmt.group_by(MoodleSubmittedFile.id)
+                subquery = subquery.where(MoodleSubmittedFile.filesize <= max_size)
+            subquery = subquery.subquery('digests_for_files')
+            stmt = (
+                select(
+                    MoodleSubmittedFile,
+                    MoodleUser.fullname,
+                    subquery.c.existing_digests
+                )
+                .select_from(MoodleSubmittedFile)
+                .join(MoodleUser, onclause=(MoodleUser.id == MoodleSubmittedFile.user_id))
+                .outerjoin(subquery, onclause=(subquery.c.id == MoodleSubmittedFile.id))
+            )
             async for f, username, has_digests in await session.stream(stmt):
                 f: MoodleSubmittedFile
                 username: str
                 has_digests: list[str]
-                missing_set = available_set.difference(has_digests)
+                missing_set = available_set.difference(has_digests) if has_digests else available_set
                 if missing_set:
+                    self.__log.debug('    File %s is missing: %s', f.filename, ', '.join(missing_set))
                     target = FileToCompute(
                         file_id=f.id,
                         digest_type='',

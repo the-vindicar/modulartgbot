@@ -1,148 +1,17 @@
-"""Класс, управляющий плагинами для извлечения и сравнения выжимок из файлов."""
+"""Класс, контролирующий процесс извлечения и сравнения выжимок из файлов."""
 import typing as t
 import asyncio
 import concurrent.futures
 import datetime
-import dataclasses
-import importlib
-import gzip
 import logging
-from pathlib import Path
+import logging.handlers
+import multiprocessing
 
 from api import aiobatch
-from modules.moodle import MoodleAdapter, MoodleError
-from .base import DigestExtractorABC, DigestComparerABC
+from modules.moodle import MoodleAdapter, MoodleError, WebServerError
 from .config import FileComparisonConfig
 from ..models import FileToCompute, DigestPair, FileComparison, FileDigest, FileWarning
-
-
-@dataclasses.dataclass
-class ComputeDigestResponse:
-    """Отклик при извлечении дайджестов из файла."""
-    file: FileToCompute
-    gzipped_digests: dict[str, t.Optional[bytes]]
-    warnings: dict[str, str]
-    errors: list[Exception]
-
-
-@dataclasses.dataclass
-class ComputeSimilarityResponse:
-    """Отклик при расчёте сходства дайджестов."""
-    older_id: int
-    newer_id: int
-    digest_type: str
-    similarity: t.Optional[float]
-    error: t.Optional[Exception]
-
-
-class Worker:
-    """
-    Этот класс обеспечивает подготовку и использование плагинов в дочерних процессах.
-    Следует иметь ввиду, что его методы уже выполняются в дочерних процессах, поэтому его инициализация
-    отложена - она выполняется не в конструкторе.
-
-    Также этот класс отвечает за сжатие и распаковку выжимок из файлов перед использованием. Вне класса должны
-    быть видны только сжатые выжимки, а плагинам для работы с типами дайджестов - только распакованные.
-    """
-    @staticmethod
-    def get_classes() -> tuple[list[t.Type[DigestExtractorABC]], list[t.Type[DigestComparerABC]]]:
-        """Загружает дайджест-плагины и находит все актуальные классы плагинов."""
-        extractors: list[t.Type[DigestExtractorABC]] = []
-        comparers: list[t.Type[DigestComparerABC]] = []
-        for item in (Path(__file__) / 'plugins').parent.glob('*'):
-            if not (item.is_file() and item.suffix.lower() == '.py' and
-                    (not item.name.startswith('_') and not item.name.startswith('.'))):
-                continue
-            elif not (item.is_dir() and (item / '__init__.py').is_file()):
-                continue
-            importkey = f'{__name__}.plugins.{item.stem}'
-            module = importlib.import_module(importkey)
-            for attrname in dir(module):
-                attr = getattr(module, attrname)
-                if isinstance(attr, type):
-                    if issubclass(attr, DigestExtractorABC):
-                        extractors.append(attr)
-                    if issubclass(attr, DigestComparerABC):
-                        comparers.append(attr)
-        return extractors, comparers
-
-    def __init__(self, settings: dict[str, dict[str, t.Any]]):
-        self._extractors: list[DigestExtractorABC] = []
-        self._comparers: list[DigestComparerABC] = []
-        self._settings = settings.copy()
-
-    def initializer(self) -> None:
-        """Импортирует и инициализирует плагины в дочерних процессах."""
-        extractors, comparers = self.get_classes()
-        for cls in extractors:
-            try:
-                instance = cls()
-                instance.initialize(self._settings.get(instance.name(), {}))
-            except Exception as err:
-                print(err)
-            else:
-                self._extractors.append(instance)
-
-    def extract_digests(self, file: FileToCompute, content: bytes) -> ComputeDigestResponse:
-        """Обрабатывает один файл и извлекает из него все возможные дайджесты.
-
-        :param file: Описание обрабатываемого файла.
-        :param content: Содержимое обрабатываемого файла.
-        :return: Результат обработки файла."""
-        digests: dict[str, t.Optional[bytes]] = {n: None for n in file.digest_types}
-        warns = {}
-        errors = []
-        for plugin in self._extractors:
-            try:
-                if (not file.digest_types.isdisjoint(plugin.digest_types()) and
-                        plugin.can_process_file(file.file_name, file.mimetype, file.file_size)):
-                    pdigests, pwarns = plugin.process_file(file.file_name, file.mimetype, content)
-                    for digest_type, digest_data in pdigests:
-                        if digest_data is not None:
-                            digest_data = gzip.compress(digest_data, compresslevel=9)
-                        digests[digest_type] = digest_data
-                    warns.update(pwarns)
-            except Exception as err:
-                errors.append(err)
-        return ComputeDigestResponse(file, digests, warns, errors)
-
-    def compare_digests(self, pair: DigestPair) -> ComputeSimilarityResponse:
-        """Сравнивает два дайджеста и возвращает степень сходства от 0(нет сходства) до 1(идентичные).
-
-        :param pair: Описание пары сравниваемых файлов.
-        :return: Тип дайджеста; ID старого файла; ID нового файла;
-        степень сходства или объект исключения (при ошибке)."""
-        for plugin in self._comparers:
-            if pair.digest_type in plugin.digest_types():
-                try:
-                    older_content = gzip.decompress(pair.older_content)
-                    newer_content = gzip.decompress(pair.newer_content)
-                    similarity = plugin.compare_digests(pair.digest_type,
-                                                        pair.older_id, older_content,
-                                                        pair.newer_id, newer_content)
-                except Exception as err:
-                    return ComputeSimilarityResponse(
-                        digest_type=pair.digest_type,
-                        older_id=pair.older_id,
-                        newer_id=pair.newer_id,
-                        similarity=None,
-                        error=err
-                    )
-                else:
-                    return ComputeSimilarityResponse(
-                        digest_type=pair.digest_type,
-                        older_id=pair.older_id,
-                        newer_id=pair.newer_id,
-                        similarity=similarity,
-                        error=None
-                    )
-        return ComputeSimilarityResponse(
-            digest_type=pair.digest_type,
-            older_id=pair.older_id,
-            newer_id=pair.newer_id,
-            similarity=None,
-            error=ValueError(f'Noone knows how to compare digest type of {pair.digest_type}')
-        )
+from .worker import ComputeDigestResponse, ComputeSimilarityResponse, Worker
 
 
 class DigestManager:
@@ -153,10 +22,16 @@ class DigestManager:
         self._log = log
         available_digest_types: set[str] = set()
         available_names: set[str] = set()
-        extractors, _ = Worker.get_classes()
+        extractors, comparers = Worker.get_classes()
         for cls in extractors:
             available_digest_types.update(cls.digest_types())
-            available_names.add(cls.name())
+            name = cls.name()
+            available_names.add(name)
+            self._log.debug('Found extractor %s (%s), it computes %s',
+                            cls.__name__, name, ', '.join(cls.digest_types()))
+        for cls in comparers:
+            self._log.debug('Found comparer %s, it compares %s',
+                            cls.__name__, ', '.join(cls.digest_types()))
         for k in list(cfg.plugin_settings.keys()):
             if k not in available_names:
                 log.warning('Plugin %s not found, ignoring settings.', k)
@@ -164,15 +39,22 @@ class DigestManager:
         self._available_digests = frozenset(available_digest_types)
         self._worker = Worker(cfg.plugin_settings)
         self._pool: t.Optional[concurrent.futures.Executor] = None
+        self._log_queue: multiprocessing.Queue = multiprocessing.Queue()
+        self._listener = logging.handlers.QueueListener(self._log_queue, *logging.root.handlers,
+                                                        respect_handler_level=True)
         self.batch_size: int = 4
 
     async def __aenter__(self) -> t.Self:
-        self._pool = concurrent.futures.ProcessPoolExecutor(max_workers=None,
-                                                            initializer=self._worker.initializer)
+        self._pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=1,
+            initializer=self._worker.initializer,
+            initargs=(self._log.name+'.worker', self._log_queue))
+        self._listener.start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self._pool.shutdown(wait=True, cancel_futures=True)
+        self._listener.stop()
 
     @property
     def available_digests(self) -> frozenset[str]:
@@ -183,6 +65,8 @@ class DigestManager:
             self, missing_files: t.AsyncIterable[FileToCompute]
     ) -> t.AsyncIterable[tuple[list[FileDigest], list[FileWarning]]]:
         """Обрабатывает файлы, у которых недостаёт дайджестов."""
+        if self._pool is None:
+            raise RuntimeError('Manager is not initialized. Did you forget `async with`?')
         loop = asyncio.get_running_loop()
         futures: list[asyncio.Future[ComputeDigestResponse]] = []
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -200,29 +84,60 @@ class DigestManager:
                     self._log.info('Ignoring file %s because it is too old (uploaded %s ago).',
                                    file.file_url, age)
                 try:
-                    response = await self._moodle.get_download_response(file.file_url)
+                    dlresponse = await self._moodle.get_download_response(file.file_url)
                     self._log.debug('Downloading file %s from %s', file.file_name, file.file_url)
-                    async with response:
-                        content = await response.read()  # скачиваем файл
+                    async with dlresponse:
+                        content = await dlresponse.read()  # скачиваем файл
+                    self._log.debug('Processing file %s using executor %s',
+                                    file.file_name, type(self._pool).__name__)
                     future = loop.run_in_executor(  # планируем извлечение дайджеста в дочернем процессе
                         self._pool, self._worker.extract_digests,
                         file, content
                     )
                     del content
-                    futures.append(future)  # собираем future для всех файлов в один список
-                except MoodleError:
-                    self._log.warning('Failed to download file %s ( %s )',
-                                      file.file_name, file.file_url)
+                except WebServerError as err:
+                    self._log.warning('Failed to download file %s ( %s ) due to webserver error: %s',
+                                      file.file_name, file.file_url, err)
+                except MoodleError as err:
+                    self._log.warning('Failed to download file %s ( %s ): %s',
+                                      file.file_name, file.file_url, err)
+                    if err.errorcode in ('filenotfound', 404):  # если файл не найден, игнорируем его в будущем
+                        self._log.warning('Ignoring file %s in the future', file.file_name)
+                        digests = [
+                            FileDigest(
+                                file_id=file.file_id,
+                                digest_type=digest_type,
+                                user_id=file.user_id,
+                                user_name=file.user_name,
+                                assignment_id=file.assignment_id,
+                                submission_id=file.submission_id,
+                                file_name=file.file_name,
+                                file_url=file.file_url,
+                                file_uploaded=file.file_uploaded,
+                                created=datetime.datetime.now(datetime.timezone.utc),
+                                content=None
+                            )
+                            for digest_type in file.digest_types
+                        ]
+                        yield digests, []
                 except Exception as err:
                     self._log.error('Unexpected error when processing file %s ( %s )',
                                     file.file_name, file.file_url, exc_info=err)
-            if not futures:
-                break
-            for item in asyncio.as_completed(futures):  # перебираем файлы в порядке их обработки
-                response = await item  # ждем, когда обработается очередной файл
+                else:
+                    futures.append(future)  # собираем future для всех файлов в один список
+            self._log.debug('Waiting for %d files to process...', len(futures))
+            for response in await asyncio.gather(*futures, return_exceptions=True):  # перебираем результаты
+                response: t.Union[Exception, ComputeDigestResponse]
+                if isinstance(response, Exception):
+                    self._log.warning('Unexpected error while processing files', exc_info=response)
+                    continue
                 for err in response.errors:
-                    self._log.warning('Failed to create digest for file %s ( %s )',
-                                      response.file.file_name, response.file.file_url, exc_info=err)
+                    if isinstance(err, Exception):
+                        self._log.warning('Failed to create digest for file %s ( %s )',
+                                          response.file.file_name, response.file.file_url, exc_info=err)
+                    else:
+                        self._log.debug('File %s ( %s ): %s',
+                                        response.file.file_name, response.file.file_url, err)
                 digests = [
                     FileDigest(
                         file_id=response.file.file_id,
@@ -247,15 +162,21 @@ class DigestManager:
                     )
                     for warn_type, warn_content in response.warnings.items()
                 ]
+                self._log.debug('Received %d digests and %d warnings for file %s',
+                                len(digests), len(warnings), response.file.file_name)
                 yield digests, warnings
 
     async def compare_digests(self, missing_comps: t.AsyncIterable[DigestPair]) -> t.AsyncIterable[FileComparison]:
         """Сравнивает пары дайджестов и возвращает результаты сравнений."""
+        if self._pool is None:
+            raise RuntimeError('Manager is not initialized. Did you forget `async with`?')
         loop = asyncio.get_running_loop()
         futures: list[asyncio.Future[ComputeSimilarityResponse]] = []
         async for comp_batch in aiobatch(missing_comps, self.batch_size):  # обрабатываем пары порциями
             futures.clear()
             for pair in comp_batch:
+                self._log.debug('Comparing %s for %s and %s using executor %s',
+                                pair.digest_type, pair.older_id, pair.newer_id, type(self._pool).__name__)
                 future = loop.run_in_executor(  # планируем сравнение дайджестов в дочернем процессе
                     self._pool, self._worker.compare_digests,
                     pair
@@ -263,8 +184,11 @@ class DigestManager:
                 futures.append(future)
             if not futures:
                 break
-            for item in asyncio.as_completed(futures):  # перебираем сравнения в порядке их обработки
-                response = await item  # ждем, когда обработается очередное сравнение
+            for response in await asyncio.gather(*futures, return_exceptions=True):
+                response: t.Union[Exception, ComputeSimilarityResponse]
+                if isinstance(response, Exception):
+                    self._log.warning('Unexpected error while comparing digests', exc_info=response)
+                    continue
                 if response.similarity is None:
                     self._log.warning('Failed to compare two files using digest "%s"',
                                       response.digest_type, exc_info=response.error)

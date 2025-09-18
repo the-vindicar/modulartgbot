@@ -22,6 +22,7 @@ async def lifetime(api: CoreAPI):
     engine = await api(AsyncEngine)
     m = await api(MoodleAdapter)
     repo = FileDataRepository(engine, log)
+    await repo.create_tables()
     api.register_api_provider(repo, FileDataRepository)
     async with background_task(scheduler(log, cfg, repo, m)):
         yield
