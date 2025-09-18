@@ -7,7 +7,7 @@ import logging
 import aiohttp
 from pydantic import BaseModel, TypeAdapter, ValidationError, JsonValue
 
-from .errors import MoodleError, InvalidToken
+from .errors import MoodleError, InvalidToken, WebServerError
 from .webservice import MoodleFunctions, ModelType, RUserDescription
 
 __all__ = ['Moodle']
@@ -148,20 +148,31 @@ class Moodle:
             self.__session = aiohttp.ClientSession()
         url = self.__base_url + 'login/token.php'
         params = dict(username=self.__username, password=self.__password, service=self.__service)
-        async with self.__session.get(url, params=params) as r:
-            if r.status >= 400:
-                raise MoodleError(url=str(r.url), message=f'Server responded with error code {r.status}')
-            try:
-                response = await r.json()
-            except aiohttp.ClientError as err:
-                raise MoodleError(url=str(r.url), message=await r.text()) from err
-            else:
-                if isinstance(response, dict) and 'exception' in response:
-                    MoodleError.make_and_raise(str(r.url), response)
-                elif not isinstance(response, dict) or 'token' not in response:
-                    raise MoodleError(url=str(r.url), message='Key "token" not found in the response')
-        self.token = response['token']
-        await self._update_user_info()
+        try:
+            async with self.__session.get(url, params=params) as r:
+                if 400 <= r.status <= 499:
+                    raise MoodleError(url=str(r.url),
+                                      message=f'Server responded with error code {r.status}',
+                                      errorcode=r.status)
+                elif 500 <= r.status <= 599:
+                    raise WebServerError(url=str(r.url),
+                                         message=f'Server responded with error code {r.status}',
+                                         errorcode=r.status)
+                try:
+                    response = await r.json()
+                except aiohttp.ClientError as err:
+                    raise MoodleError(url=str(r.url), message=await r.text()) from err
+                else:
+                    if isinstance(response, dict) and 'exception' in response:
+                        MoodleError.make_and_raise(str(r.url), response)
+                    elif not isinstance(response, dict) or 'token' not in response:
+                        raise MoodleError(url=str(r.url), message='Key "token" not found in the response')
+        except Exception:
+            self.token = ''
+            raise
+        else:
+            self.token = response['token']
+            await self._update_user_info()
 
     async def _update_user_info(self) -> None:
         """Attempts to acquire user info for the account we are using."""

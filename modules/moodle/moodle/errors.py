@@ -1,7 +1,7 @@
 """Provides classes corresponding to some typical Moodle errors."""
 from typing import Any, Dict, Callable, TypeVar, NoReturn, final
 
-__all__ = ['MoodleError', 'InvalidToken', 'InvalidParameter', 'AccessDenied']
+__all__ = ['MoodleError', 'WebServerError', 'InvalidToken', 'InvalidParameter', 'AccessDenied']
 ME = TypeVar('ME', bound='MoodleError')
 
 
@@ -47,6 +47,10 @@ class MoodleError(RuntimeError):
             return f"[{self.errorcode}] {self.message}\nUrl: {self.url}\nData: {self.data!r}"
         else:
             return f"{self.message}\nUrl: {self.url}\nData: {self.data!r}"
+
+
+class WebServerError(MoodleError):
+    """This error means server returned a 5XX code. This could be a temporary problem."""
 
 
 @MoodleError.register('invalidtoken')
