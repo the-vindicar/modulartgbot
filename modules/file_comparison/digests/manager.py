@@ -11,7 +11,10 @@ from api import aiobatch
 from modules.moodle import MoodleAdapter, MoodleError, WebServerError
 from .config import FileComparisonConfig
 from ..models import FileToCompute, DigestPair, FileComparison, FileDigest, FileWarning
-from .worker import ComputeDigestResponse, ComputeSimilarityResponse, Worker
+from .worker import (
+    ComputeDigestResponse, ComputeSimilarityResponse,
+    get_classes, initializer, extract_digests, compare_digests
+)
 
 
 class DigestManager:
@@ -22,10 +25,10 @@ class DigestManager:
         self._log = log
         available_digest_types: set[str] = set()
         available_names: set[str] = set()
-        extractors, comparers = Worker.get_classes()
+        extractors, comparers = get_classes()
         for cls in extractors:
             available_digest_types.update(cls.digest_types())
-            name = cls.name()
+            name = cls.plugin_name()
             available_names.add(name)
             self._log.debug('Found extractor %s (%s), it computes %s',
                             cls.__name__, name, ', '.join(cls.digest_types()))
@@ -37,7 +40,6 @@ class DigestManager:
                 log.warning('Plugin %s not found, ignoring settings.', k)
                 del cfg.plugin_settings[k]
         self._available_digests = frozenset(available_digest_types)
-        self._worker: t.Optional[Worker] = None
         self._pool: t.Optional[concurrent.futures.Executor] = None
         self._log_queue: multiprocessing.Queue = multiprocessing.Queue()
         self._listener = logging.handlers.QueueListener(self._log_queue, *logging.root.handlers,
@@ -45,11 +47,10 @@ class DigestManager:
         self.batch_size: int = 4
 
     async def __aenter__(self) -> t.Self:
-        self._worker = Worker(self.cfg.plugin_settings)
         self._pool = concurrent.futures.ProcessPoolExecutor(
             max_workers=1,
-            initializer=self._worker.initializer,
-            initargs=(self._log.name+'.worker', self._log_queue))
+            initializer=initializer,
+            initargs=(self._log.name+'.worker', self._log_queue, self.cfg.plugin_settings))
         self._listener.start()
         return self
 
@@ -99,7 +100,7 @@ class DigestManager:
                     self._log.debug('Processing file %s using executor %s',
                                     file.file_name, type(self._pool).__name__)
                     future = loop.run_in_executor(  # планируем извлечение дайджеста в дочернем процессе
-                        self._pool, self._worker.extract_digests,
+                        self._pool, extract_digests,
                         file, content
                     )
                     del content
@@ -170,7 +171,7 @@ class DigestManager:
                 self._log.debug('Comparing %s for %s and %s using executor %s',
                                 pair.digest_type, pair.older_id, pair.newer_id, type(self._pool).__name__)
                 future = loop.run_in_executor(  # планируем сравнение дайджестов в дочернем процессе
-                    self._pool, self._worker.compare_digests,
+                    self._pool, compare_digests,
                     pair
                 )
                 futures.append(future)
@@ -180,8 +181,7 @@ class DigestManager:
                 response: t.Union[Exception, ComputeSimilarityResponse]
                 if isinstance(response, Exception):
                     self._log.warning('Unexpected error while comparing digests', exc_info=response)
-                    raise response  # TODO:
-                    # continue
+                    continue
                 if response.similarity is None:
                     self._log.warning('Failed to compare two files using digest "%s"',
                                       response.digest_type, exc_info=response.error)

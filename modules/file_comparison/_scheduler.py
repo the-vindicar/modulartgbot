@@ -44,7 +44,7 @@ async def scheduler(
                 comp_count += len(batch)
                 await repo.store_comparisons(batch)
             if comp_count > 0:
-                log.info('Stored %d new comparisons.')
+                log.info('Stored %d new comparisons.', comp_count)
             else:
                 log.debug('No new comparisons to store.')
             await asyncio.sleep(cfg.refresh_interval_seconds)
