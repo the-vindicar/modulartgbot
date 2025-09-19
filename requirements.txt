@@ -10,3 +10,4 @@ quart-auth
 aiogram~=3.21.0
 homoglyphs
 openpyxl~=3.1.5
+pdfplumber

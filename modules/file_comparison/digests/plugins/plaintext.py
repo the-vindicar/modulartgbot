@@ -3,13 +3,18 @@ import logging
 import typing as t
 import difflib
 from fnmatch import fnmatch
+import re
 
 from ._base import DigestExtractorABC, DigestComparerABC
 from ._homoglyphs import normalize_text
 
 
+__all__ = ['PlaintextExtractor', 'PlaintextComparer']
+
+
 class PlaintextExtractor(DigestExtractorABC):
     """Извлекает дайджест из plaintext-файлов."""
+    WHITESPACE_COLLAPSE = re.compile(br'[ \t]+')
 
     def __init__(self):
         self.mimetypes: t.Collection[str] = []
@@ -41,7 +46,7 @@ class PlaintextExtractor(DigestExtractorABC):
     def process_file(self, filename: str, mimetype: str, content: bytes) -> tuple[dict[str, bytes], dict[str, str]]:
         parts = content.split(b'\n')
         for i in range(len(parts)-1, -1, -1):
-            part = parts[i].strip(b' \t\r\n')
+            part = self.WHITESPACE_COLLAPSE.sub(b' ', parts[i].strip(b' \t\r\n'))
             if not part:
                 del parts[i]
             else:
