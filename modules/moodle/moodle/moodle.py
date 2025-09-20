@@ -55,6 +55,11 @@ class Moodle:
         return self.__base_url
 
     @property
+    def username(self) -> str:
+        """Username we're using to log in."""
+        return self.__username
+
+    @property
     def me(self) -> Optional[RUserDescription]:
         """Information about our account, as retrieved from the server."""
         return self.__user
@@ -194,12 +199,14 @@ class Moodle:
         try:
             r = await self.__session.get(fileurl, params={'token': self.token})
         except aiohttp.ClientError as err:
-            raise MoodleError(message=f'Connection failed: {err!s}', url=fileurl)
+            raise MoodleError(message=f'Connection failed: {err!s}', url=str(fileurl))
         else:
             if r.status == 200:
                 return r
             else:
-                raise MoodleError(url=fileurl, message=f'Failed to receive file: [{r.status}]', data=await r.text())
+                data = await r.text()
+                raise MoodleError(url=str(fileurl), message=f'Failed to receive file',
+                                  data=data, errorcode=r.status)
 
     def timestamp2datetime(self, ts: Optional[int]) -> Optional[datetime.datetime]:
         """Transforms a timestamp into a :class:`datetime.datetime` instance according to server timezone.

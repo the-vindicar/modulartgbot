@@ -24,15 +24,11 @@ class MoodleError(RuntimeError):
     @final
     def make_and_raise(cls, url: str, response: Dict[str, Any]) -> NoReturn:
         """Analyzes a typical Moodle error response and throws a corresponding exception."""
-        if 'errorcode' in response:
-            klass = cls.known_errors.get(response['errorcode'], cls)
-            raise klass(message=response.get('message', ''), url=url,
-                        exception=response['exception'], errorcode=response['errorcode'],
-                        data=response)
-        else:
-            raise MoodleError(message=response.get('message', ''), url=url,
-                              exception=response['exception'], errorcode='',
-                              data=response)
+        msg = response.get('message', '') or response.get('error', '')
+        klass = cls.known_errors.get(response['errorcode'], cls)
+        raise klass(message=msg, url=url,
+                    exception=response.get('exception', ''), errorcode=response.get('errorcode', ''),
+                    data=response)
 
     def __init__(self, message: str, url: str = None, exception=None, errorcode=None, data=None):
         super().__init__(message, url, exception, errorcode, data)

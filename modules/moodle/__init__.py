@@ -46,22 +46,23 @@ async def lifetime(api: CoreAPI):
         try:
             await moodle_instance.login()
         except WebServerError as err:
-            log.error('Moodle instance %s reported error %s during login. Later attempts might still succeed.',
+            log.error('Moodle instance at %s reported error %s during login. Continuing startup.',
                       moodle_instance.base_url, err.errorcode)
         except Exception:
             log.critical('Failed to connect to Moodle instance at %s as %s',
-                         moodle_instance.base_url, cfg.user, exc_info=True)
+                         moodle_instance.base_url, moodle_instance.username, exc_info=True)
             raise
         else:
             log.info('Connected to Moodle instance at %s as %s',
-                     moodle_instance.base_url, cfg.user)
+                     moodle_instance.base_url, moodle_instance.username)
         api.register_api_provider(moodle_instance, MoodleAdapter)
         message_bot = MoodleMessageBot(moodle_instance, log)
         api.register_api_provider(message_bot, MoodleMessageBot)
         yield PostInit
 
         if cfg.message_poll_seconds > 0:
-            async with background_task(message_bot.poll_messages(datetime.timedelta(seconds=cfg.message_poll_seconds))):
+            poll_interval = datetime.timedelta(seconds=cfg.message_poll_seconds)
+            async with background_task(message_bot.poll_messages(poll_interval)):
                 yield
         else:  # не выполняем поллинг сообщений
             yield
