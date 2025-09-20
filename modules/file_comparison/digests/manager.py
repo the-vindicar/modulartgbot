@@ -108,9 +108,8 @@ class DigestManager:
                     self._log.warning('Failed to download file %s ( %s ) due to webserver error: %s',
                                       file.file_name, file.file_url, err)
                 except MoodleError as err:
-                    self._log.warning('Failed to download file %s ( %s ): %s',
-                                      file.file_name, file.file_url, err)
-                    if err.errorcode in ('filenotfound', 404):  # если файл не найден, игнорируем его в будущем
+                    self._log.warning('Failed to download file %s: %s', file.file_name, err)
+                    if err.errorcode == 404:  # если файл не найден, игнорируем его в будущем
                         self._log.warning('Ignoring file %s in the future', file.file_name)
                         yield file.make_empty_digests(), []
                 except Exception as err:

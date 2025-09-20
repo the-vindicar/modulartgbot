@@ -20,10 +20,13 @@ async def scheduler(
     async with manager:
         while True:
             log.debug('Looking for files to process...')
+            max_age = (
+                datetime.timedelta(days=cfg.ignore_files_older_than_days)
+                if cfg.ignore_files_older_than_days else None
+            )
             missing_digest_stream = repo.stream_files_with_missing_digests(
                 available_digest_types=manager.available_digests,
-                max_age=(datetime.timedelta(days=cfg.ignore_files_older_than_days)
-                         if cfg.ignore_files_older_than_days else None),
+                max_age=max_age,
                 max_size=cfg.ignore_files_larger_than
             )
             new_digest_stream = manager.extract_digests(missing_digest_stream)
@@ -37,7 +40,7 @@ async def scheduler(
                 log.info('Stored %d new digests and %d new warnings.', digest_count, warning_count)
             else:
                 log.debug('No new digests or warnings to store.')
-            missing_comparison_stream = repo.stream_missing_comparisons()
+            missing_comparison_stream = repo.stream_missing_comparisons(max_age_diff=max_age)
             new_comparison_stream = manager.compare_digests(missing_comparison_stream)
             comp_count = 0
             async for batch in aiobatch(new_comparison_stream, manager.batch_size):
