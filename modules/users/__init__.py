@@ -35,7 +35,10 @@ async def lifetime(api: CoreAPI):
     context.dispatcher.include_router(router)
     app = await api(quart.Quart)
     app.secret_key = os.environ['QUART_AUTH_SECRET']
-    quart_auth.QuartAuth(app, user_class=SiteAuthUser, mode='cookie')
+    secure_cookie = (os.environ.get('QUART_AUTH_COOKIE_SECURE', '1').lower()
+                     in ('1', 'true', 'yes', 'on', 'enabled', 'enable'))
+    quart_auth.QuartAuth(app, user_class=SiteAuthUser, mode='cookie',
+                         cookie_secure=secure_cookie)
 
     async def load_user_before_request():
         """Загружает сведения о текущем пользователе."""
