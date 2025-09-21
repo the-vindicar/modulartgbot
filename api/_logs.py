@@ -49,7 +49,7 @@ class ReducedTracebackFormatter(logging.Formatter):
 @dataclasses.dataclass
 class LoggingCfg:
     """Конфигурация журнала работы системы."""
-    file: str = None
+    file: t.Optional[str] = None
     file_maxsize: int = 1024*1024
     file_backups: int = 3
     file_level: str = 'DEBUG'
