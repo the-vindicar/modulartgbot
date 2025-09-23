@@ -13,4 +13,4 @@ levels:
   modules.timetablemon: INFO
   modules.moodlemon: INFO
   modules.users: INFO
-  modules.filecomp: DEBUG
+  modules.filecomp: INFO

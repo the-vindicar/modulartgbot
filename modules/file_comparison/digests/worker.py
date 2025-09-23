@@ -77,7 +77,7 @@ def get_classes() -> tuple[list[t.Type[DigestExtractorABC]], list[t.Type[DigestC
     return extractors_classes, comparer_classes
 
 
-def initializer(log_name: str, log_queue: multiprocessing.Queue, settings: dict[str, dict[str, t.Any]]):
+def initializer(log_name: str, log_level: int, log_queue: multiprocessing.Queue, settings: dict[str, dict[str, t.Any]]):
     """Импортирует и инициализирует плагины в дочерних процессах."""
     global extractors, comparers, log, is_initialized
     log = logging.getLogger(log_name)
@@ -87,9 +87,9 @@ def initializer(log_name: str, log_queue: multiprocessing.Queue, settings: dict[
     )
     handler = logging.handlers.QueueHandler(log_queue)
     handler.setFormatter(formatter)
-    handler.setLevel(logging.DEBUG)
+    handler.setLevel(log_level)
     log.addHandler(handler)
-    log.setLevel(logging.DEBUG)
+    log.setLevel(log_level)
 
     extractor_classes, comparer_classes = get_classes()
     for cls in extractor_classes:

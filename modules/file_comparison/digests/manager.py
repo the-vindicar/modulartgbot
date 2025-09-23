@@ -50,7 +50,7 @@ class DigestManager:
         self._pool = concurrent.futures.ProcessPoolExecutor(
             max_workers=1,
             initializer=initializer,
-            initargs=(self._log.name+'.worker', self._log_queue, self.cfg.plugin_settings))
+            initargs=(self._log.name+'.worker', self._log.level, self._log_queue, self.cfg.plugin_settings))
         self._listener.start()
         return self
 

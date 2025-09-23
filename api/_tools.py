@@ -7,7 +7,7 @@ import logging
 import typing as t
 
 
-__all__ = ['aiobatch', 'background_task', 'IntervalScheduler']
+__all__ = ['aiobatch', 'background_task', 'log_ticker', 'IntervalScheduler']
 _T = t.TypeVar('_T')
 
 
@@ -54,6 +54,39 @@ async def background_task(coro: t.Coroutine):
             await task
         except asyncio.CancelledError:
             pass
+
+
+async def _log_ticker(log: logging.Logger, message: str, interval: float, level: int) -> None:
+    """
+    Корутина, которая периодически пишет в указанный журнал сообщение. Способ показывать, что идёт длительный процесс.
+
+    :param log: Журнал, в который выполняется запись.
+    :param message: Записываемое сообщение. Может содержать маркер "{}", вместо которого будет подставлено
+    истекшее время.
+    :param interval: Интервал ожидания между записями. Может соблюдаться неточно.
+    :param level: Уровень, на котором следует записывать сообщение.
+    """
+    start = datetime.datetime.now()
+    while True:
+        await asyncio.sleep(interval)
+        log.log(level, message.format(datetime.datetime.now() - start))
+
+
+def log_ticker(log: logging.Logger, message: str, interval: float, level: int = logging.INFO) -> asyncio.Task[None]:
+    """
+    Асинхронный менеджер контекста, который периодически пишет в указанный журнал сообщение, пока выполняет код внутри.
+    Способ показывать, что идёт длительный процесс.
+
+    async with log_ticker(log, "Жду уже {}", 10.0, logging.INFO):
+        await asyncio.sleep(60)
+
+    :param log: Журнал, в который выполняется запись.
+    :param message: Записываемое сообщение. Может содержать маркер "{}", вместо которого будет подставлено
+    истекшее время.
+    :param interval: Интервал ожидания между записями. Может соблюдаться неточно.
+    :param level: Уровень, на котором следует записывать сообщение.
+    """
+    return background_task(_log_ticker(log, message, interval, level))
 
 
 class IntervalScheduler(t.Generic[_T]):
