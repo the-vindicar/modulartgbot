@@ -15,7 +15,7 @@ class TimetableMonitorConfig:
     """Конфигурация модуля мониторинга расписания."""
     update_time_utc: str = "15:00:00"
     telegram_delay: float = 1
-    teachers: dict[str, str] = dataclasses.field(default_factory=dict)
+    teachers: dict[str, t.Any] = dataclasses.field(default_factory=dict)
     rooms: list[str] = dataclasses.field(default_factory=list)
     course_shortnames: dict[str, t.Optional[str]] = dataclasses.field(default_factory=dict)
 
