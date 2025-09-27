@@ -214,10 +214,10 @@ class RSubmissionStatus(BaseModel):
     warnings: list[RWarning] = Field(default_factory=list)
 
 
-class AssignMixin:
+class AssignMixin (WebServiceFunctions):
     """Mixin providing methods for working with users."""
-    async def mod_assign_get_assignments(
-            self: WebServiceAdapter,
+    async def get_assignments(
+            self,
             courseids: Collection[int] = (),
             capabilities: Collection[str] = (),
             includenotenrolledcourses: bool = False
@@ -227,15 +227,15 @@ class AssignMixin:
         :param capabilities: Only retrieve assignments, for which we have specified capabilities.
         :param includenotenrolledcourses: If False, any courses we are not enrolled in will be dropped from the list.
         :returns: List of assignments, grouped by course."""
-        return await self(
+        return await self._owner(
             'mod_assign_get_assignments', dict(
                 courseids=courseids, capabilities=capabilities,
                 includenotenrolledcourses=includenotenrolledcourses
             ), model=RAssignments
         )
 
-    async def mod_assign_get_submissions(
-            self: WebServiceAdapter,
+    async def get_submissions(
+            self,
             assignmentids: Collection[int],
             status: str = '',
             since: Union[datetime, int] = 0, before: Union[datetime, int] = 0
@@ -246,13 +246,13 @@ class AssignMixin:
         :param since: If not 0, only retrieve submissions sent at or after the specified timestamp.
         :param before: If not 0, only retrieve submissions sent at or before the specified timestamp.
         :returns: List of submissions, grouped by assignment."""
-        return await self(
+        return await self._owner(
             'mod_assign_get_submissions', dict(
                 assignmentids=assignmentids, status=status, since=since, before=before
             ), model=RSubmissions
         )
 
-    async def mod_assign_get_grades(
+    async def get_grades(
             self: WebServiceAdapter,
             assignmentids: Collection[int],
             since: Union[datetime, int] = 0
@@ -267,8 +267,8 @@ class AssignMixin:
             ), model=RAssignmentsGrades
         )
 
-    async def mod_assign_get_submission_status(
-            self: WebServiceAdapter,
+    async def get_submission_status(
+            self,
             assignid: int,
             userid: int = 0,
             groupid: Union[int, Literal['']] = 0
@@ -278,7 +278,7 @@ class AssignMixin:
         :param userid: User that had sent/could have sent the submission.
         :param groupid: Group that had sent/could have sent the submission, in case of group submission being enabled.
         :returns: Submisison status information."""
-        return await self(
+        return await self._owner(
             'mod_assign_get_submission_status', dict(
                 assignid=assignid, userid=userid, groupid=groupid
             ), model=RSubmissionStatus

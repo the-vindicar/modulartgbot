@@ -4,7 +4,7 @@ import typing as t
 import datetime
 import logging
 import re
-from .moodle import Moodle, MessageType, MessageReadStatus, RMessage
+from .moodle import Moodle, MessageType, MessageReadStatus, RMessage, MoodleError
 
 
 MessageHandler = t.Callable[[RMessage], t.Awaitable[None]]
@@ -61,42 +61,51 @@ class MoodleMessageBot:
         """Циклически запрашивает у сервера новые сообщения и обрабатывает их."""
         try:
             self._is_polling = True
+            exponential_sleep = interval
             while True:
-                unread = await self._moodle.function.core_message_get_unread_conversations_count(self._moodle.me.id)
+                unread = await self._moodle.function.core_message.get_unread_conversations_count(self._moodle.me.id)
                 if unread > 0:
-                    messages = await self._moodle.function.core_message_get_messages(
-                        useridto=self._moodle.me.id, useridfrom=0, type=MessageType.CONVERSATIONS,
-                        read=MessageReadStatus.UNREAD, newestfirst=False, limitnum=10)
-                    for msg in messages.messages:
-                        for msgfilter, msghandler in self._handlers[::-1]:
-                            try:
-                                if isinstance(msgfilter, re.Pattern):
-                                    check_passed = msgfilter.match(msg.fullmessage)
-                                else:
-                                    check_passed = await msgfilter(msg)
-                            except Exception as err:
-                                self._log.warning('Message filter %s failed!\nMessage: %s',
-                                                  msgfilter, msg, exc_info=err)
-                                check_passed = False
-                            if check_passed:
+                    try:
+                        messages = await self._moodle.function.core_message.get_messages(
+                            useridto=self._moodle.me.id, useridfrom=0, type=MessageType.CONVERSATIONS,
+                            read=MessageReadStatus.UNREAD, newestfirst=False, limitnum=10)
+                        for msg in messages.messages:
+                            for msgfilter, msghandler in self._handlers[::-1]:
                                 try:
-                                    await msghandler(msg)
+                                    if isinstance(msgfilter, re.Pattern):
+                                        check_passed = msgfilter.match(msg.fullmessage)
+                                    else:
+                                        check_passed = await msgfilter(msg)
                                 except Exception as err:
-                                    self._log.warning('Message handler %s failed!\nMessage: %s',
-                                                      msghandler, msg, exc_info=err)
-                                break
-                        else:
-                            defhandler = self.default_handler
-                            if defhandler is not None:
-                                try:
-                                    await defhandler(msg)
-                                except Exception as err:
-                                    self._log.warning('Message handler %s failed!\nMessage: %s',
-                                                      defhandler, msg, exc_info=err)
+                                    self._log.warning('Message filter %s failed!\nMessage: %s',
+                                                      msgfilter, msg, exc_info=err)
+                                    check_passed = False
+                                if check_passed:
+                                    try:
+                                        await msghandler(msg)
+                                    except Exception as err:
+                                        self._log.warning('Message handler %s failed!\nMessage: %s',
+                                                          msghandler, msg, exc_info=err)
+                                    break
                             else:
-                                self._log.info('No handler found for message from %s (%d): %s',
-                                               msg.userfromfullname, msg.useridfrom, msg.fullmessage)
-                        await self._moodle.function.core_message_mark_message_read(msg.id)
-                await asyncio.sleep(interval.total_seconds())
+                                defhandler = self.default_handler
+                                if defhandler is not None:
+                                    try:
+                                        await defhandler(msg)
+                                    except Exception as err:
+                                        self._log.warning('Message handler %s failed!\nMessage: %s',
+                                                          defhandler, msg, exc_info=err)
+                                else:
+                                    self._log.info('No handler found for message from %s (%d): %s',
+                                                   msg.userfromfullname, msg.useridfrom, msg.fullmessage)
+                            await self._moodle.function.core_message.mark_message_read(msg.id)
+                    except MoodleError as err:
+                        self._log.error('Moodle server failure! Will sleep for %s and hope it goes away.',
+                                        exponential_sleep, exc_info=err)
+                        await asyncio.sleep(exponential_sleep.total_seconds())
+                        exponential_sleep *= 2
+                    else:
+                        exponential_sleep = interval
+                        await asyncio.sleep(interval.total_seconds())
         finally:
             self._is_polling = False

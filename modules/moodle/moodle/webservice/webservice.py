@@ -6,26 +6,34 @@ from pydantic import JsonValue
 if tp.TYPE_CHECKING:
     from modules.moodle.moodle import Moodle
 
-from .common import ModelType
+from .common import ModelType, WebServiceAdapter
 from .siteinfo import SiteInfoMixin
 from .courses import CoursesMixin
+from .enrol import EnrolMixin
 from .users import UsersMixin
 from .assignments import AssignMixin
-from .grades import GradesMixin
+from .grades import GradeReportMixin
 from .messages import MessagesMixin
 
 
 __all__ = ['MoodleFunctions']
 
 
-class MoodleFunctions(CoursesMixin, UsersMixin, AssignMixin, SiteInfoMixin, GradesMixin, MessagesMixin):
+class MoodleFunctions:
     """Moodle Web API wrapper class that provides methods with properly type-hinted parameters and returns.
     If you need to call an API function that does not have a pre-defined method, use __call__() and provide
     function name first. Optionally, provide a Pydantic model to validate the result against."""
-    __slots__ = ('__owner', )
 
     def __init__(self, owner: 'Moodle'):
         self.__owner = owner
+        this = tp.cast(WebServiceAdapter, self)
+        self.core_webservice = SiteInfoMixin(this)
+        self.core_users = UsersMixin(this)
+        self.core_course = CoursesMixin(this)
+        self.core_enrol = EnrolMixin(this)
+        self.mod_assign = AssignMixin(this)
+        self.gradereport = GradeReportMixin(this)
+        self.core_message = MessagesMixin(this)
 
     @tp.overload
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],

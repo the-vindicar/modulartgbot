@@ -177,11 +177,11 @@ class RMarkAsReadNotification(BaseModel):
 
 
 # noinspection PyShadowingBuiltins
-class MessagesMixin:
+class MessagesMixin(WebServiceFunctions):
     """Mixin providing methods for working with private messages."""
     # region Conversation API
-    async def core_message_get_conversations(
-            self: WebServiceAdapter,
+    async def get_conversations(
+            self,
             userid: int,
             limitfrom: int = 0,
             limitnum: int = 0,
@@ -200,13 +200,13 @@ class MessagesMixin:
         :param mergeself: If True and private conversations are requested, include the self-conversation as well.
         :returns: List of matching conversations.
         """
-        return await self('core_message_get_conversations', dict(
+        return await self._owner('core_message_get_conversations', dict(
             userid=userid, limitfrom=limitfrom, limitnum=limitnum,
             type=type, favourites=favourites, mergeself=mergeself
         ), model=RConvList)
 
-    async def core_message_send_messages_to_conversation(
-            self: WebServiceAdapter, conversationid: int, *messages: t.Union[SendMessage, str]
+    async def send_messages_to_conversation(
+            self, conversationid: int, *messages: t.Union[SendMessage, str]
     ) -> list[RConvMessage]:
         """Sends one or more messages to the specified conversation.
 
@@ -214,12 +214,12 @@ class MessagesMixin:
         :param messages: Sequence of messages to send, either strings or messages with specific formatting.
         :returns: List of message objects corresponding to the sent messages.
         """
-        return await self('core_message_send_messages_to_conversation', dict(
+        return await self._owner('core_message_send_messages_to_conversation', dict(
             conversationid=conversationid, messages=messages
         ), model=list[RConvMessage])
 
-    async def core_message_get_conversation_messages(
-            self: WebServiceAdapter, currentuserid: int, convid: int,
+    async def get_conversation_messages(
+            self, currentuserid: int, convid: int,
             limitfrom: int = 0, limitnum: int = 0, newest: bool = False, timefrom: int = 0
     ) -> RConvMessages:
         """Retrieves messages from the given conversation.
@@ -232,23 +232,23 @@ class MessagesMixin:
         :param timefrom: If not 0, only return messages sent later than this timestamp.
         :return:
         """
-        return await self('core_message_get_messages', dict(
+        return await self._owner('core_message_get_messages', dict(
             currentuserid=currentuserid, convid=convid, timefrom=timefrom,
             newest=newest, limitfrom=limitfrom, limitnum=limitnum
         ), model=RConvMessages)
 
-    async def core_message_get_unread_conversations_count(
-            self: WebServiceAdapter, useridto: t.Union[int, t.Literal[0]]
+    async def get_unread_conversations_count(
+            self, useridto: t.Union[int, t.Literal[0]]
     ) -> int:
         """How many conversations have unread messages?
 
         :param useridto: Recipient of the messages. Usually our own ID. See ``Moodle.me.id``.
         :returns: Amount of conversations with unread messages."""
-        return await self('core_message_get_unread_conversations_count', dict(useridto=useridto), model=int)
+        return await self._owner('core_message_get_unread_conversations_count', dict(useridto=useridto), model=int)
     # endregion
 
-    async def core_message_mark_message_read(
-            self: WebServiceAdapter, messageid: int, timeread: int = 0
+    async def mark_message_read(
+            self, messageid: int, timeread: int = 0
     ) -> RMarkAsReadMessage:
         """Marks a single message as having been read.
 
@@ -256,12 +256,12 @@ class MessagesMixin:
         :param timeread: Timestamp to mark the message with. 0 means server current time.
         :return:
         """
-        return await self('core_message_mark_message_read', dict(
+        return await self._owner('core_message_mark_message_read', dict(
             messageid=messageid, timeread=timeread
         ), model=RMarkAsReadMessage)
 
-    async def core_message_mark_notification_read(
-            self: WebServiceAdapter, notificationid: int, timeread: int = 0
+    async def mark_notification_read(
+            self, notificationid: int, timeread: int = 0
     ) -> RMarkAsReadNotification:
         """Marks a single notification as having been read.
 
@@ -269,12 +269,12 @@ class MessagesMixin:
         :param timeread: Timestamp to mark the message with. 0 means server current time.
         :return:
         """
-        return await self('core_message_mark_notification_read', dict(
+        return await self._owner('core_message_mark_notification_read', dict(
             notificationid=notificationid, timeread=timeread
         ), model=RMarkAsReadNotification)
 
-    async def core_message_mark_all_conversation_messages_as_read(
-            self: WebServiceAdapter, userid: int, conversationid: int
+    async def mark_all_conversation_messages_as_read(
+            self, userid: int, conversationid: int
     ) -> None:
         """Marks all messages in a conversation as having been read.
 
@@ -282,23 +282,23 @@ class MessagesMixin:
         :param conversationid: Which conversation to mark as read.
         :return:
         """
-        return await self('core_message_mark_all_conversation_messages_as_read', dict(
+        return await self._owner('core_message_mark_all_conversation_messages_as_read', dict(
             userid=userid, conversationid=conversationid
         ), model=None)
 
-    async def core_message_send_instant_messages(
-            self: WebServiceAdapter, *messages: SendInstantMessage
+    async def send_instant_messages(
+            self, *messages: SendInstantMessage
     ) -> list[RInstantMessageReport]:
         """Send a set of instant messages.
 
         :param messages: Texts and targets for the messages.
         :returns: Success or failure reports. User clientmsgid field to figure out which report is for which message.
         """
-        return await self('core_message_send_instant_messages', dict(messages=messages),
-                          model=list[RInstantMessageReport])
+        return await self._owner('core_message_send_instant_messages', dict(messages=messages),
+                                 model=list[RInstantMessageReport])
 
-    async def core_message_get_messages(
-            self: WebServiceAdapter,
+    async def get_messages(
+            self,
             useridto: t.Union[int, t.Literal[0]],
             useridfrom: t.Union[int, t.Literal[0, -10, -20]] = 0,
             type: MessageType = MessageType.BOTH,
@@ -317,7 +317,7 @@ class MessagesMixin:
         :param limitfrom: Pagination. Number of messages to skip.
         :param limitnum: Pagination. Number of messages to retrieve after skipping.
         """
-        return await self('core_message_get_messages', dict(
+        return await self._owner('core_message_get_messages', dict(
             useridfrom=useridfrom, useridto=useridto, type=type, read=read,
             newestfirst=newestfirst, limitfrom=limitfrom, limitnum=limitnum
         ), model=RMessages)

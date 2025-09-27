@@ -43,10 +43,10 @@ class RPaginatedCourses(BaseModel):
     nextoffset: int
 
 
-class CoursesMixin:
+class CoursesMixin(WebServiceFunctions):
     """Mixin providing methods for working with courses."""
-    async def core_course_get_enrolled_courses_by_timeline_classification(
-            self: WebServiceAdapter,
+    async def get_enrolled_courses_by_timeline_classification(
+            self,
             classification: Union[str, CourseTimelineClassification],
             limit: int = 0,
             offset: int = 0,
@@ -67,7 +67,7 @@ class CoursesMixin:
         :param requiredfields: Which fields to return about each course. Useful to reduce the bandwidth usage.
         :returns: A page from the list of courses.
         """
-        return await self(
+        return await self._owner(
             'core_course_get_enrolled_courses_by_timeline_classification', dict(
                 classification=classification,
                 limit=limit, offset=offset, sort=sort,

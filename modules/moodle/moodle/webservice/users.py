@@ -1,4 +1,4 @@
-"""This submodule deals with retrieving users, be that in general or course participants."""
+"""This submodule deals with retrieving users in general."""
 from typing import Optional, Any, Collection, Union
 from enum import StrEnum
 
@@ -8,9 +8,7 @@ from .common import *
 
 
 __all__ = [
-    'UsersMixin',
-    'RCourseMention', 'REnrolledUser',
-    'RGroup', 'RRole', 'RPreference', 'RCustomField',
+    'UsersMixin', 'RPreference', 'RCustomField', 'RBaseUser',
     'UserByField', 'RUserDescription'
 ]
 
@@ -27,27 +25,7 @@ class RPreference(BaseModel):
     value: Any
 
 
-class RGroup(BaseModel):
-    id: PositiveInt
-    name: str
-    description: Optional[str]
-    descriptionformat: Any
-
-
-class RRole(BaseModel):
-    roleid: PositiveInt
-    name: str
-    shortname: str
-    sortorder: int
-
-
-class RCourseMention(BaseModel):
-    id: PositiveInt
-    fullname: str
-    shortname: str
-
-
-class _RBaseUser(BaseModel):
+class RBaseUser(BaseModel):
     id: PositiveInt
     fullname: Optional[str] = None
     username: Optional[str] = None
@@ -73,14 +51,7 @@ class _RBaseUser(BaseModel):
     profileimageurl: Optional[AnyHttpUrl] = None
 
 
-class REnrolledUser(_RBaseUser):
-    lastcourseaccess: Optional[Timestamp] = None
-    groups: list[RGroup] = Field(default_factory=list)
-    roles: list[RRole] = Field(default_factory=list)
-    enrolledcourses: list[RCourseMention] = Field(default_factory=list)
-
-
-class RUserDescription(_RBaseUser):
+class RUserDescription(RBaseUser):
     theme: Optional[str] = None
     timezone: Optional[str] = None
 
@@ -93,25 +64,10 @@ class UserByField(StrEnum):
     EMAIL = 'email'
 
 
-class UsersMixin:
+class UsersMixin(WebServiceFunctions):
     """Mixin providing methods for working with users."""
-    async def core_enrol_get_enrolled_users(
-            self: WebServiceAdapter,
-            courseid: int,
-            options: Collection[Option]
-    ) -> list[REnrolledUser]:
-        """Retrieves all users, enrolled into the given course.
-        :param courseid: ID of the course in question.
-        :param options: Search options: withcapability, groupid, onlyactive, onlysuspended, userfields,
-            limitfrom, limitnumber, sortby, sortdirection.
-        :returns: List of enrolled users."""
-        return await self(
-            'core_enrol_get_enrolled_users', dict(
-                courseid=courseid, options=options
-            ), model=list[REnrolledUser])
-
-    async def core_user_get_users_by_field(
-            self: WebServiceAdapter,
+    async def get_users_by_field(
+            self,
             field: Union[UserByField, str],
             values: Collection[Union[int, str]]
     ) -> list[RUserDescription]:
@@ -119,7 +75,7 @@ class UsersMixin:
         :param field: Field name.
         :param values: Set of values to match.
         :returns: List of users."""
-        return await self(
+        return await self._owner(
             'core_user_get_users_by_field', dict(
                 field=field, values=values
             ), model=list[RUserDescription])

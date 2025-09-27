@@ -21,7 +21,7 @@ class MoodleAdapter(Moodle):
         :returns: Асинхронный поток экземпляров класса :class:`Course`."""
         offset, limit = 0, batch_size
         while True:
-            raw_course_data = await self.function.core_course_get_enrolled_courses_by_timeline_classification(
+            raw_course_data = await self.function.core_course.get_enrolled_courses_by_timeline_classification(
                 classification='inprogress' if in_progress_only else 'all',
                 offset=offset, limit=limit)
             raw_courses = raw_course_data.courses
@@ -54,7 +54,7 @@ class MoodleAdapter(Moodle):
                 {'name': 'limitfrom', 'value': offset},
                 {'name': 'limitnumber', 'value': limit},
             ]
-            raw_users = await self.function.core_enrol_get_enrolled_users(
+            raw_users = await self.function.core_enrol.get_enrolled_users(
                 courseid=courseid, options=options + limits
             )
             if not raw_users:
@@ -72,7 +72,7 @@ class MoodleAdapter(Moodle):
         """Возвращает поток объектов-заданий (assignment), имеющихся в данных курсах.
         :param course_ids: Идентификаторы курсов, из которых мы загружаем задания.
         :returns: Асинхронный поток экземпляров класса :class:`Assignment`."""
-        response = await self.function.mod_assign_get_assignments(
+        response = await self.function.mod_assign.get_assignments(
             courseids=list(course_ids), includenotenrolledcourses=True
         )
         for course in response.courses:
@@ -99,7 +99,7 @@ class MoodleAdapter(Moodle):
         :param submitted_after: Дата и время, позднее которого (включительно) ответ был загружен.
         :param submitted_before: Дата и время, ранее которого (включительно) ответ был загружен.
         :returns: Асинхронный поток экземпляров класса :class:`Submission`."""
-        responce = await self.function.mod_assign_get_submissions(
+        responce = await self.function.mod_assign.get_submissions(
             assignmentids=[assignmentid],
             since=int(submitted_after.astimezone(self.timezone).timestamp()) if submitted_after is not None else 0,
             before=int(submitted_before.astimezone(self.timezone).timestamp()) if submitted_before is not None else 0,

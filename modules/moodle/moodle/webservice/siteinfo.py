@@ -50,9 +50,9 @@ class RSiteInfo(BaseModel):
     policyagreed: Optional[int] = None
 
 
-class SiteInfoMixin:
+class SiteInfoMixin(WebServiceFunctions):
     """Mixin providing methods for working with site info."""
-    async def core_webservice_get_site_info(self: WebServiceAdapter) -> RSiteInfo:
+    async def get_site_info(self) -> RSiteInfo:
         """Retrieves information about the site and the user we're logged in as.
         :returns: Site information."""
-        return await self('core_webservice_get_site_info', {}, model=RSiteInfo)
+        return await self._owner('core_webservice_get_site_info', {}, model=RSiteInfo)

@@ -6,7 +6,7 @@ from pydantic import BaseModel, PositiveInt, AnyHttpUrl
 
 
 __all__ = [
-    'ModelType', 'WebServiceAdapter',
+    'ModelType', 'WebServiceAdapter', 'WebServiceFunctions',
     'Timestamp', 'Option', 'FormatEnum', 'File', 'RWarning',
 ]
 Timestamp = Annotated[int, Ge(0)]
@@ -15,8 +15,16 @@ ModelType = TypeVar('ModelType')
 
 class WebServiceAdapter(Protocol):
     """A quick stub representing MoodleFunctions class. We only need one method of it anyway."""
-    async def __call__(self, fn: str, params: dict[str, Any], *, model: Type[ModelType]) -> ModelType:
+    async def __call__(self, func: str, params: dict[str, Any], *, model: Type[ModelType]) -> ModelType:
         ...
+
+
+class WebServiceFunctions:
+    """A base for any functions pack class."""
+    __slots__ = ('_owner',)
+
+    def __init__(self, owner: WebServiceAdapter):
+        self._owner = owner
 
 
 class FormatEnum(Enum):

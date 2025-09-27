@@ -5,7 +5,7 @@ from .common import *
 
 
 __all__ = [
-    'GradesMixin',
+    'GradeReportMixin',
     'RGradeItem', 'RGradeLeader', 'RGradeColumn', 'RUserGrade', 'RUserGradeTable', 'RGradesTables',
     'RGradeItemsItem', 'RGradeItems', 'RGradeItemsUserGrade', 'RGradeItems'
 ]
@@ -115,10 +115,10 @@ class RGradeItems(BaseModel):
     warnings: list[RWarning]
 
 
-class GradesMixin:
+class GradeReportMixin(WebServiceFunctions):
     """Mixin providing methods for working with grades."""
-    async def gradereport_user_get_grades_table(
-            self: WebServiceAdapter,
+    async def user_get_grades_table(
+            self,
             courseid: int,
             userid: int = None,
             groupid: int = None
@@ -130,12 +130,12 @@ class GradesMixin:
         :param groupid: ID of the group for which grades are retrieved. None means all groups.
         :returns: Grade report table.
         """
-        return await self('gradereport_user_get_grades_table', dict(
+        return await self._owner('gradereport_user_get_grades_table', dict(
             courseid=courseid, userid=userid, groupid=groupid
         ), model=RGradesTables)
 
-    async def gradereport_user_get_grade_items(
-            self: WebServiceAdapter,
+    async def user_get_grade_items(
+            self,
             courseid: int,
             userid: int = None,
             groupid: int = None
@@ -146,6 +146,6 @@ class GradesMixin:
         :param groupid: ID of the group for which grades are retrieved. None means all groups.
         :returns: List of grades.
         """
-        return await self('gradereport_user_get_grade_items', dict(
+        return await self._owner('gradereport_user_get_grade_items', dict(
             courseid=courseid, userid=userid, groupid=groupid
         ), model=RGradeItems)
