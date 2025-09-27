@@ -5,7 +5,6 @@ import datetime
 import logging
 import re
 from .moodle import Moodle, MessageType, MessageReadStatus, RMessage, MoodleError
-from api import ExponentialBackoff
 
 
 MessageHandler = t.Callable[[RMessage], t.Awaitable[None]]
@@ -62,8 +61,7 @@ class MoodleMessageBot:
         """Циклически запрашивает у сервера новые сообщения и обрабатывает их."""
         try:
             self._is_polling = True
-            backoff = ExponentialBackoff(base=interval, quotient=2, sleep_on_success='base',
-                                         jitter=0.25*interval, cap=datetime.timedelta(hours=1))
+            exponential_sleep = interval
             while True:
                 unread = await self._moodle.function.core_message.get_unread_conversations_count(self._moodle.me.id)
                 if unread > 0:
@@ -102,12 +100,12 @@ class MoodleMessageBot:
                                                    msg.userfromfullname, msg.useridfrom, msg.fullmessage)
                             await self._moodle.function.core_message.mark_message_read(msg.id)
                     except MoodleError as err:
-                        wait = backoff.after_failure()
                         self._log.error('Moodle server failure! Will sleep for %s and hope it goes away.',
-                                        wait, exc_info=err)
-                        await asyncio.sleep(wait.total_seconds())
+                                        exponential_sleep, exc_info=err)
+                        await asyncio.sleep(exponential_sleep.total_seconds())
+                        exponential_sleep *= 2
                     else:
-                        wait = backoff.after_success()
-                        await asyncio.sleep(wait.total_seconds())
+                        exponential_sleep = interval
+                        await asyncio.sleep(interval.total_seconds())
         finally:
             self._is_polling = False

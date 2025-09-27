@@ -4,11 +4,10 @@ import contextlib
 import datetime
 import itertools
 import logging
-import random
 import typing as t
 
 
-__all__ = ['aiobatch', 'background_task', 'log_ticker', 'IntervalScheduler', 'ExponentialBackoff']
+__all__ = ['aiobatch', 'background_task', 'log_ticker', 'IntervalScheduler']
 _T = t.TypeVar('_T')
 
 
@@ -88,56 +87,6 @@ def log_ticker(log: logging.Logger, message: str, interval: float, level: int = 
     :param level: Уровень, на котором следует записывать сообщение.
     """
     return background_task(_log_ticker(log, message, interval, level))
-
-
-class ExponentialBackoff:
-    """Вычисляет экспоненциально растующую задержку при сбоях."""
-    __slots__ = ('base', 'quotient', 'jitter', 'cap', 'sleep_on_success', '_current', '_rng')
-
-    def __init__(self, base: datetime.timedelta, quotient: float = 2.0,
-                 jitter: t.Optional[datetime.timedelta] = None,
-                 cap: t.Optional[datetime.timedelta] = None,
-                 sleep_on_success: t.Literal['zero', 'base', 'base+jitter'] = 'base'):
-        self.base = base
-        self.quotient = quotient
-        self.jitter = jitter
-        self.cap = cap
-        self._current = base
-        self.sleep_on_success = sleep_on_success
-        self._rng = random.Random()
-
-    @property
-    def current(self) -> datetime.timedelta:
-        """Величина текущей задержки."""
-        return self._current
-
-    def get_random_jitter(self) -> datetime.timedelta:
-        """Возвращает случайный джиттер с учётом текущих настроек."""
-        if self.jitter is not None:
-            return datetime.timedelta(seconds=(2 * self._rng.random() - 1)*self.jitter.total_seconds())
-        else:
-            return datetime.timedelta(seconds=0)
-
-    def force_reset(self) -> None:
-        """Принудительно сбрасывает задержку на базовое значение. Обычно этот метод не должен требоваться."""
-        self._current = self.base
-
-    def after_success(self) -> datetime.timedelta:
-        """Сколько ждать, если операция была успешна."""
-        self._current = self.base
-        if self.sleep_on_success == 'base+jitter':
-            return self.base + self.get_random_jitter()
-        elif self.sleep_on_success == 'base':
-            return self.base
-        else:
-            return datetime.timedelta(seconds=0)
-
-    def after_failure(self) -> datetime.timedelta:
-        """Сколько ждать, если операция потерпела неудачу."""
-        self._current = self._current * self.quotient
-        if self.cap and self._current > self.cap:
-            self._current = self.cap
-        return self._current + self.get_random_jitter()
 
 
 class IntervalScheduler(t.Generic[_T]):
