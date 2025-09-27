@@ -181,7 +181,7 @@ class Moodle:
 
     async def _update_user_info(self) -> None:
         """Attempts to acquire user info for the account we are using."""
-        res = await self.function.core_user_get_users_by_field(field='username', values=[self.__username])
+        res = await self.function.core_users.get_users_by_field(field='username', values=[self.__username])
         if not res:
             self.__user = None
             return
