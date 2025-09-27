@@ -41,9 +41,10 @@ async def main():
             cfg=cfg,
             module_whitelist=[
                 'db', 'telegram',
-                'moodle', 'moodle_monitoring',
                 'users', 'users_extra',
-                'file_comparison']
+                'moodle', 'moodle_monitoring', 'file_comparison',
+                'workload', 'timetable_monitoring'
+            ]
         )
         async with modules_context:
             yield
