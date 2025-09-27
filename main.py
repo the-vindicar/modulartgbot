@@ -22,23 +22,6 @@ async def main():
     data = Path(os.environ.get('MULTIBOT_DATA', str(Path(sys.argv[0]).parent / 'data')))
     cfg = ConfigManagerImpl(data / 'config')
 
-    class RootPathMiddleware:
-        """Гарантирует, что мы учитываем путь к корню сайта."""
-        def __init__(self, app, root_path: str = ""):
-            self.app = app
-            self.root_path = root_path
-
-        async def __call__(self, scope, receive, send):
-            # Если nginx передал SCRIPT_NAME — используем его
-            headers = dict((k.decode(), v.decode()) for k, v in scope.get("headers", []))
-            script_name = headers.get("script_name") or headers.get("x-script-name")
-            if script_name:
-                scope["root_path"] = script_name
-            elif self.root_path:
-                scope["root_path"] = self.root_path
-
-            await self.app(scope, receive, send)
-
     @dataclasses.dataclass
     class WebConfig:
         """Конфигурация веб-сервера."""
@@ -70,7 +53,6 @@ async def main():
 
     web_cfg = await cfg.load('web', WebConfig)
     app.config['APPLICATION_ROOT'] = os.environ.get('APPLICATION_ROOT', web_cfg.root)
-    app.asgi_app = RootPathMiddleware(app.asgi_app, app.config['APPLICATION_ROOT'])
     await app.run_task(
         web_cfg.host, web_cfg.port,
         ca_certs=web_cfg.ca_certs, certfile=web_cfg.certfile, keyfile=web_cfg.keyfile,
