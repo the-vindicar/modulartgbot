@@ -19,7 +19,6 @@ async def main():
     from api import modules_lifespan, ConfigManagerImpl, setup_logging
 
     load_dotenv()
-    app = quart.Quart(__name__)
     data = Path(os.environ.get('MULTIBOT_DATA', str(Path(sys.argv[0]).parent / 'data')))
     cfg = ConfigManagerImpl(data / 'config')
 
@@ -28,9 +27,12 @@ async def main():
         """Конфигурация веб-сервера."""
         host: str = '0.0.0.0'
         port: int = 8080
+        root: str = ''
         ca_certs: t.Optional[str] = None
         certfile: t.Optional[str] = None
         keyfile: t.Optional[str] = None
+
+    app = quart.Quart(__name__)
 
     @app.while_serving
     async def context():
@@ -50,6 +52,7 @@ async def main():
             yield
 
     web_cfg = await cfg.load('web', WebConfig)
+    app.config['APPLICATION_ROOT'] = os.environ.get('APPLICATION_ROOT', web_cfg.root)
     await app.run_task(
         web_cfg.host, web_cfg.port,
         ca_certs=web_cfg.ca_certs, certfile=web_cfg.certfile, keyfile=web_cfg.keyfile,
