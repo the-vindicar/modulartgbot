@@ -48,7 +48,7 @@ class DigestManager:
 
     async def __aenter__(self) -> t.Self:
         self._pool = concurrent.futures.ProcessPoolExecutor(
-            max_workers=1,
+            max_workers=None,
             initializer=initializer,
             initargs=(self._log.name+'.worker', self._log.level, self._log_queue, self.cfg.plugin_settings))
         self._listener.start()
