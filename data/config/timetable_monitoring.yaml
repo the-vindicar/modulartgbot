@@ -1,5 +1,6 @@
 update_time_utc: '15:00:00'
 telegram_delay: 1
+website_delay: 5
 teachers:
     Барило И.И.:
     Борисов А.С.:

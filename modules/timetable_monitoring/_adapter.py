@@ -1,4 +1,5 @@
 """Обеспечивает загрузку расписания с сайта КГУ."""
+import asyncio
 import typing as t
 import datetime
 import re
@@ -13,9 +14,12 @@ __all__ = ['KSUTimetableAdapter']
 
 class KSUTimetableAdapter:
     """Обеспечивает загрузку расписания с сайта КГУ."""
-    def __init__(self):
-        self.base_url = 'https://eios-po.kosgos.ru/'
+    def __init__(self, request_interval: datetime.timedelta = datetime.timedelta(seconds=0)):
+        self.base_url = 'https://eios.kosgos.ru/'
         self.session = aiohttp.ClientSession()
+        self._last_request = datetime.datetime.min
+        self._base_request_interval = request_interval
+        self._current_request_interval = request_interval
 
     async def __aenter__(self) -> t.Self:
         await self.session.__aenter__()
@@ -24,6 +28,20 @@ class KSUTimetableAdapter:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.session.__aexit__(exc_type, exc_val, exc_tb)
 
+    async def _query(self, url: str) -> t.Any:
+        while True:
+            now = datetime.datetime.now()
+            if self._current_request_interval.total_seconds() > 0:
+                delta = ((self._last_request + self._current_request_interval) - now).total_seconds()
+                if delta > 0:
+                    await asyncio.sleep(delta)
+            self._last_request = now
+            async with self.session.get(url) as r:
+                if r.status == 429:  # всё ещё слишком быстро!
+                    self._current_request_interval *= 1.5
+                else:
+                    return await r.json()
+
     async def download_teacher_ids(self, teacher_names: list[str]) -> dict[str, int]:
         """Загружает используемые на сайте ID указанных преподавателей.
         :param teacher_names: Список имён преподавателей в формате Фамилия И.О.
@@ -31,8 +49,7 @@ class KSUTimetableAdapter:
         result = {}
         now = datetime.datetime.now()
         year = now.year if now.month > 7 else now.year - 1
-        async with self.session.get(f'{self.base_url}api/raspTeacherlist?year={year}-{year+1}') as r:
-            reply = await r.json()
+        reply = await self._query(f'{self.base_url}api/raspTeacherlist?year={year}-{year+1}')
         short_name_regexp = re.compile(r'^\s*(.+?)\s+(\w)\.\s*(\w)\.\s*$', re.I)
         full_name_regexp = re.compile(r'^\s*(.+?)\s+(\w)\w+\s+(\w)\w+\s*$', re.I)
         shortnames: dict[tuple, str] = {
@@ -54,8 +71,7 @@ class KSUTimetableAdapter:
     async def download_room_ids(self) -> dict[str, int]:
         """Загружает список ID доступных аудиторий.
         :returns: Набор пар "номер аудитории - ID"."""
-        async with self.session.get(f'{self.base_url}api/raspAudlist') as r:
-            reply = await r.json()
+        reply = await self._query(f'{self.base_url}api/raspAudlist')
         return {item['name']: int(item['id']) for item in reply['data']}
 
     async def download_teacher_timetable(self, teacher_id: int) -> Timetable:
@@ -64,8 +80,7 @@ class KSUTimetableAdapter:
         :returns: Расписание для этого преподавателя."""
         start, end, desired_semester = self._get_date_range()
         url = f'{self.base_url}api/Rasp?idTeacher={teacher_id}&sdate={start:%Y-%m-%d}&edate={end:%Y-%m-%d}'
-        async with self.session.get(url) as r:
-            reply = await r.json()
+        reply = await self._query(url)
         data: list[dict[str, t.Any]] = reply['data']['rasp']
         timetable = self._analyze_timetable(data, desired_semester)
         return timetable
@@ -76,8 +91,7 @@ class KSUTimetableAdapter:
         :returns: Расписание для этой аудитории."""
         start, end, desired_semester = self._get_date_range()
         url = f'{self.base_url}api/Rasp?idAudLine={room_id}&sdate={start:%Y-%m-%d}&edate={end:%Y-%m-%d}'
-        async with self.session.get(url) as r:
-            reply = await r.json()
+        reply = await self._query(url)
         data: list[dict[str, t.Any]] = reply['data']['rasp']
         timetable = self._analyze_timetable(data, desired_semester)
         return timetable

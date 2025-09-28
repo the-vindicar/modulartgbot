@@ -7,11 +7,13 @@ import asyncio
 import datetime
 import logging
 
+import aiohttp
 import aiogram
+from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api import CoreAPI, background_task
-from modules.users import UserRepository, NameStyle, SiteUser
+from modules.users import UserRepository, NameStyle, SiteUser, tg_is_site_admin
 from ._classes import *
 from .models import TimetableRepository
 from ._adapter import *
@@ -19,9 +21,18 @@ from ._web import web_context, blueprint
 
 
 __all__ = []
-requires = [aiogram.Bot, AsyncEngine, UserRepository]
+requires = [aiogram.Bot, aiogram.Dispatcher, AsyncEngine, UserRepository]
 provides = []
 log = logging.getLogger('modules.timetablemon')
+tgrouter = aiogram.Router(name='timetable')
+
+
+@tgrouter.message(tg_is_site_admin, Command('timetable_scan_now'))
+async def force_timetable_scan(msg: aiogram.types.Message):
+    """Принудительно запускает сканирование официального расписания занятий. Также разошлёт оповещения об изменениях."""
+    web_context.force_update.set()
+    log.info('User %s ( %s ) forced a scan.', msg.from_user.full_name, msg.from_user.id)
+    await msg.answer('Обновление расписания запущено.')
 
 
 class TimetableTracker:
@@ -40,9 +51,12 @@ class TimetableTracker:
             # перезагружаем конфигурацию - в ней могли быть обновления
             web_context.config = await self.api.config.load('timetable_monitoring', TimetableMonitorConfig)
             # грузим обновленное расписание с сайта
-            notifications = await self.perform_update(web_context.config)
-            if notifications:  # были обновления?
-                await self.notify_teachers(notifications)  # да, оповещаем
+            try:
+                notifications = await self.perform_update(web_context.config)
+                if notifications:  # были обновления?
+                    await self.notify_teachers(notifications)  # да, оповещаем
+            except Exception as err:
+                log.critical('Unexpected error:', exc_info=err)
 
     async def perform_update(self, cfg: TimetableMonitorConfig) -> list[tuple[SiteUser, list[TimetableSlotChange]]]:
         """Загружает обновлённое расписание с сайта университета, сохраняет его и вычисляет изменения.
@@ -50,7 +64,8 @@ class TimetableTracker:
         :returns: Набор пар "Telegram ID - список изменений"."""
         notifications: list[tuple[SiteUser, list[TimetableSlotChange]]] = []
         courses: set[str] = set()
-        async with KSUTimetableAdapter() as adapter:  # устанавливаем соединение с сайтом
+        mindelay = datetime.timedelta(seconds=cfg.website_delay)
+        async with KSUTimetableAdapter(request_interval=mindelay) as adapter:  # устанавливаем соединение с сайтом
             # выясняем, какие ID у преподавателей в нашем списке
             teacher_ids = await adapter.download_teacher_ids(list(cfg.teachers.keys()))
             for teacher in cfg.teachers:
@@ -75,7 +90,11 @@ class TimetableTracker:
                             if len(userlist) == 1:
                                 notifications.append((userlist[0], changes))
                 except Exception as err:
-                    log.error('Failed to update the timetable for %s', teacher, exc_info=err)
+                    if isinstance(err, aiohttp.ClientResponseError):
+                        log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
+                                  teacher, err.status, repr(err.headers), exc_info=err)
+                    else:
+                        log.error('Failed to update the timetable for %s', teacher, exc_info=err)
                 else:
                     log.debug('Updated timetable for %s', teacher)
             # выясняем ID аудиторий
@@ -93,7 +112,11 @@ class TimetableTracker:
                     log.debug('Storing timetable for %s', room)
                     await self.ttrepo.store_room_timetable(room, timetable)
                 except Exception as err:
-                    log.error('Failed to update the timetable for %s', room, exc_info=err)
+                    if isinstance(err, aiohttp.ClientResponseError):
+                        log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
+                                  room, err.status, repr(err.headers), exc_info=err)
+                    else:
+                        log.error('Failed to update the timetable for %s', room, exc_info=err)
                 else:
                     log.debug('Updated timetable for %s', room)
 
@@ -164,6 +187,7 @@ async def lifetime(api: CoreAPI):
     log.info('Starting timetable monitoring.')
     engine = await api(AsyncEngine)
     bot = await api(aiogram.Bot)
+    tgdispatcher = await api(aiogram.Dispatcher)
     users = await api(UserRepository)
     ttrepo = TimetableRepository(engine)
     tracker = TimetableTracker(ttrepo, users, api, bot)
@@ -171,5 +195,6 @@ async def lifetime(api: CoreAPI):
         # если все нужные ресурсы доступны, и фоновая задача запущена, регистрируем веб-обработчики
         web_context.ttrepo = ttrepo
         api.register_web_router(blueprint)
+        tgdispatcher.include_router(tgrouter)
         yield
     log.info('Terminating timetable monitoring.')
