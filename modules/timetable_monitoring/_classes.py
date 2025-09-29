@@ -136,7 +136,7 @@ class Timetable:
         :returns: Строка вида "21-ИСбо-1,2,4; 21-ИИбо-1".
         """
         splits: list[tuple[str, str, str]] = [g.rpartition('-') for g in groups.split(', ')]
-        splits.sort(key=lambda item: item[0])
+        splits.sort()
         result = ''
         last_prefix = None
         for prefix, _, number in splits:
