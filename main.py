@@ -16,7 +16,7 @@ async def main():
     import quart
     from dotenv import load_dotenv
 
-    from api import modules_lifespan, ConfigManagerImpl, setup_logging
+    from api import modules_lifespan, ConfigManagerImpl, setup_logging, PrefixedQuartMap
 
     load_dotenv()
     data = Path(os.environ.get('MULTIBOT_DATA', str(Path(sys.argv[0]).parent / 'data')))
@@ -32,6 +32,7 @@ async def main():
         certfile: t.Optional[str] = None
         keyfile: t.Optional[str] = None
 
+    quart.Quart.url_map_class = PrefixedQuartMap
     app = quart.Quart(__name__)
 
     @app.while_serving
@@ -43,16 +44,17 @@ async def main():
             cfg=cfg,
             module_whitelist=[
                 'db', 'telegram',
-                'users', 'users_extra',
-                'moodle', 'moodle_monitoring', 'file_comparison',
-                'workload', 'timetable_monitoring'
+                'users',
+                'moodle', 'users_extra', 'moodle_monitoring', 'file_comparison',
+                'workload',
+                'timetable_monitoring',
             ]
         )
         async with modules_context:
             yield
 
     web_cfg = await cfg.load('web', WebConfig)
-    app.config['APPLICATION_ROOT'] = os.environ.get('APPLICATION_ROOT', web_cfg.root)
+    app.url_map.url_prefix = os.environ.get('QUART_ROOT', web_cfg.root)
     await app.run_task(
         web_cfg.host, web_cfg.port,
         ca_certs=web_cfg.ca_certs, certfile=web_cfg.certfile, keyfile=web_cfg.keyfile,
