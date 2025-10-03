@@ -1,3 +1,10 @@
+@media (max-width: 768px)
+{
+    td span {
+        font-size: 120%;
+    }
+}
+
 html, body {
     width: 100%;
     height: 100%;
@@ -5,11 +12,13 @@ html, body {
     padding: 0;
 }
 .wrapper {
-    width: 99%;
+    scroll-snap-type: x mandatory;
+    width: 100%;
     height: 99%;
     position: relative;
     overflow: auto;
 }
+
 table {
     border-collapse: separate;
     border-spacing: 0;
@@ -19,6 +28,7 @@ thead th {
     background: #EEEEEE;
     border: solid 1px black;
     white-space: nowrap;
+    scroll-snap-align: center;
     padding: 2px;
     position: sticky;
     top: 0px;
@@ -49,11 +59,17 @@ tbody td {
     min-width: 250px;
     width: 250px;
 }
-tbody tr.row1 td {
-    background: #FFFFFF;
+tbody tr.row1 {
+    background-color: #FFFFFF;
 }
-tbody tr.row2 td {
-    background: #F8F8F8;
+tbody tr.row2 {
+    background-color: #EEEEEE;
+}
+tbody tr.row1 td.active {
+    background-color: #FFFFCC;
+}
+tbody tr.row2 td.active, thead th.active  {
+    background-color: #EEEEBB;
 }
 
 tbody td.slot-above, tbody td.slot-both, tbody td.period-col {

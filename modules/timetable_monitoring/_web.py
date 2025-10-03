@@ -48,7 +48,7 @@ async def handle_teachers():
             items = []
             for t in teachers:
                 slot = timetables[t].slots[iday][iperiod]
-                items.append(slot.replace_course_names(web_context.config.course_shortnames))
+                items.append((t, slot.replace_course_names(web_context.config.course_shortnames)))
             periods.append((iperiod, period, items))
         days.append((iday, day, periods))
 
@@ -73,7 +73,7 @@ async def handle_rooms():
             items = []
             for r in rooms:
                 slot = timetables[r].slots[iday][iperiod]
-                items.append(slot.replace_course_names(web_context.config.course_shortnames))
+                items.append((r, slot.replace_course_names(web_context.config.course_shortnames)))
             periods.append((iperiod, period, items))
         days.append((iday, day, periods))
 

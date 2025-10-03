@@ -2,6 +2,7 @@
 <html>
     <head>
         <link rel="stylesheet" href="{{ url_for('timetable.static', filename='style.css') }}"/>
+        <script src="{{url_for('timetable.static', filename='script.js')}}"></script>
         <title>Расписание аудиторий</title>
     </head>
     <body>
@@ -10,8 +11,8 @@
                 <thead>
                 <tr class="sticky-row">
                     <th class="corner" colspan="2"><a href="{{ teachers_url }}">Преподаватели</a></th>
-                    {%- for item in headers -%}
-                    <th title="{{item}}"><a id="{{item}}" href="#{{item}}">{{item}}</a></th>
+                    {%- for header in headers -%}
+                    <th id="{{header}}" data-name="{{header}}"><a href="#{{header}}">{{header}}</a></th>
                     {%- endfor -%}
                 </tr>
                 </thead>
@@ -21,9 +22,9 @@
                     <tr class="row{{iday % 2 + 1}}">
                         {% if iperiod == 0 %}<td class="day-col" rowspan="{{len(periods) * 2}}"><span>{{dayname}}</span></td>{% endif %}
                         <td rowspan="2" class="period-col{% if iperiod == 0 %} first-period{% endif %}">{{periodname}}</td>
-                        {%- for item in items -%}
+                        {%- for header, item in items -%}
                         {%- if item.both %}
-                        <td rowspan="2" class="slot-both{% if iperiod == 0 %} first-period{% endif %}">
+                        <td rowspan="2" class="slot-both{% if iperiod == 0 %} first-period{% endif %}" data-name="{{header}}">
                             <span class="course">{{item.both.course}} ({{item.both.type}})</span>
                             <span class="slot-second-row">
                                 <span class="group">{{item.both.groups}}</span>
@@ -31,7 +32,7 @@
                             </span>
                         </td>
                         {%- elif item.above %}
-                        <td class="slot-above{% if iperiod == 0 %} first-period{% endif %}">
+                        <td class="slot-above{% if iperiod == 0 %} first-period{% endif %}" data-name="{{header}}">
                             <span class="course">{{item.above.course}} ({{item.above.type}})</span>
                             <span class="slot-second-row">
                                 <span class="group">{{item.above.groups}}</span>
@@ -39,14 +40,14 @@
                             </span>
                         </td>
                         {%- else %}
-                        <td class="slot-above empty{% if not item.below %} both-empty{% endif %}{% if iperiod == 0 %} first-period{% endif %}"></td>
+                        <td class="slot-above empty{% if not item.below %} both-empty{% endif %}{% if iperiod == 0 %} first-period{% endif %}" data-name="{{header}}"></td>
                         {%- endif -%}
                         {%- endfor %}
                     </tr>
                     <tr class="row{{iday % 2 + 1}}">
-                        {%- for item in items -%}
+                        {%- for header, item in items -%}
                         {%- if item.below -%}
-                        <td class="slot-below">
+                        <td class="slot-below" data-name="{{header}}">
                             <span class="course">{{item.below.course}} ({{item.both.type}})</span>
                             <span class="slot-second-row">
                                 <span class="group">{{item.below.groups}}</span>
@@ -54,7 +55,7 @@
                             </span>
                         </td>
                         {%- elif not item.both -%}
-                        <td class="slot-below empty{% if not item.above %} both-empty{% endif %}"></td>
+                        <td class="slot-below empty{% if not item.above %} both-empty{% endif %}" data-name="{{header}}"></td>
                         {%- endif -%}
                         {%- endfor -%}
                     </tr>
