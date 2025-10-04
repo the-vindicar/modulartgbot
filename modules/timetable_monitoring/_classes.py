@@ -17,7 +17,7 @@ class TimetableMonitorConfig:
     telegram_delay: float = 1
     website_delay: float = 5
     teachers: dict[str, t.Any] = dataclasses.field(default_factory=dict)
-    rooms: list[str] = dataclasses.field(default_factory=list)
+    rooms: dict[str, dict[str, t.Any]] = dataclasses.field(default_factory=dict)
     course_shortnames: dict[str, t.Optional[str]] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):

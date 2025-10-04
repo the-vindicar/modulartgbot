@@ -16,6 +16,14 @@ class Context:
     force_update: asyncio.Event = asyncio.Event()  # при установке принудительно запускает обновление расписания
 
 
+@dataclasses.dataclass(slots=True)
+class RoomDescription:
+    """Описание аудитории для передачи в шаблон"""
+    name: str
+    type: str
+    equip: dict[str, ...]
+
+
 web_context = Context()
 blueprint = quart.Blueprint(
     name='timetable', import_name='modules.timetable_monitoring',
@@ -64,22 +72,25 @@ async def handle_teachers():
 @blueprint.get('/rooms')
 async def handle_rooms():
     """Таблица расписаний аудиторий."""
-    rooms = list(web_context.config.rooms)
-    timetables: dict[str, Timetable] = await web_context.ttrepo.load_rooms_timetables(rooms)
+    room_names = list(web_context.config.rooms.keys())
+    timetables: dict[str, Timetable] = await web_context.ttrepo.load_rooms_timetables(room_names)
     days = []
     for iday, day in enumerate(Timetable.DAYS):
         periods = []
         for iperiod, period in enumerate(Timetable.PERIODS):
             items = []
-            for r in rooms:
+            for r in room_names:
                 slot = timetables[r].slots[iday][iperiod]
                 items.append((r, slot.replace_course_names(web_context.config.course_shortnames)))
             periods.append((iperiod, period, items))
         days.append((iday, day, periods))
-
+    headers = [
+        RoomDescription(name, info.get('type', '').lower(), {k: v for k, v in info.items() if k != 'type'})
+        for name, info in web_context.config.rooms.items()
+    ]
     return await quart.render_template(
         'timetable/rooms.html',
-        headers=rooms,
+        headers=headers,
         days=days,
         len=len,
         teachers_url=quart.url_for('.handle_teachers')

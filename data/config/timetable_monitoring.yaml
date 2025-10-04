@@ -23,34 +23,90 @@ teachers:
     Иваницкий В.В.:
     Попова С.В.:
 rooms:
-    - Б-101
-    - Б-102
-    - Б-104
-    - Б-107
-    - Б-201
-    - Б-202
-    - Б-203
-    - Б-204
-    - Б-206
-    - Б-207
-    - Б-208
-    - Б-301
-    - Б-302
-    - Б-303
-    - Б-304
-    - Б-306
-    - Б-307
-    - Б-308
-    - Б-309
-    - Б-310
-    - Б-312
-    - Б-313
-    - Б-401
-    - Б-403
-    - Б-406
-    - Б-407
-    - Б-408
-    - Б-409
+    Б-101:
+        type: Lab
+        Windows: 51
+    Б-102:
+        type: Lab
+        Windows: 25
+    Б-104:
+        type: Lab
+        Ubuntu: 26
+    Б-107:
+        type: Lecture
+        Windows: 1
+    Б-201:
+        type: Lab
+        Windows: 26
+    Б-202:
+        type: Lecture
+        Windows: 1
+    Б-203:
+        type: Lecture
+        Windows: 1
+    Б-204:
+        type: Lecture
+        Windows: 1
+    Б-206:
+        type: Lecture
+        Windows: 1
+    Б-207:
+        type: Lab
+        Windows: 17
+    Б-208:
+        type: Lab
+        Windows: 26
+    Б-301:
+        type: Lab
+        AltLinux: 26
+    Б-302:
+        type: Lab
+        Osn: 26
+    Б-303:
+        type: Lecture
+        Windows: 1
+    Б-304:
+        type: Lab
+        AltLinux: 26
+    Б-306:
+        type: Lecture
+        Windows: 1
+    Б-307:
+        type: Lab
+        Windows: 16
+    Б-308:
+        type: Lab
+        AltLinux: 26
+    Б-309:
+        type: Lab
+        AltLinux: 16
+    Б-310:
+        type: Lecture
+        Windows: 1
+    Б-312:
+        type: Lab
+        Windows: 19
+    Б-313:
+        type: Lecture
+        Windows: 1
+    Б-401:
+        type: Lab
+        Windows: 26
+    Б-403:
+        type: Lecture
+        Windows: 1
+    Б-406:
+        type: Lecture
+        Windows: 1
+    Б-407:
+        type: Lecture
+        Windows: 1
+    Б-408:
+        type: Lab
+        Windows: 19
+    Б-409:
+        type: Lecture
+        Windows: 1
 course_shortnames:
     BI-системы:
     Web-дизайн:

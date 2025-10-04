@@ -11,8 +11,13 @@
                 <thead>
                 <tr class="sticky-row">
                     <th class="corner" colspan="2"><a href="{{ teachers_url }}">Преподаватели</a></th>
-                    {%- for header in headers -%}
-                    <th id="{{header}}" data-name="{{header}}"><a href="#{{header}}">{{header}}</a></th>
+                    {%- for h in headers -%}
+                    <th id="{{h.name}}" data-name="{{h.name}}">
+                        <a {% if h.type %}class="room-{{h.type}}"{% endif %} href="#{{h.name}}">{{h.name}}</a>
+                        {%- for e, v in h.equip.items() %}
+                        <span class="roomequip roomequip-{{e.lower().replace(' ','')}}" title="{{e}}">{{v}}</span>
+                        {% endfor -%}
+                    </th>
                     {%- endfor -%}
                 </tr>
                 </thead>
