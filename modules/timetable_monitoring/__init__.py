@@ -67,14 +67,20 @@ class TimetableTracker:
         mindelay = datetime.timedelta(seconds=cfg.website_delay)
         async with KSUTimetableAdapter(request_interval=mindelay) as adapter:  # устанавливаем соединение с сайтом
             # выясняем, какие ID у преподавателей в нашем списке
-            teacher_ids = await adapter.download_teacher_ids(list(cfg.teachers.keys()))
-            for teacher in cfg.teachers:
-                if teacher not in teacher_ids:
-                    log.warning('Unknown teacher "%s" - no teacher id!', teacher)
-                    continue
+            all_names = list(cfg.teachers.keys())
+            names_with_ids = [n for n in all_names if '@' in n]
+            names_without_ids = [n for n in all_names if '@' not in n]
+            teacher_ids = await adapter.download_teacher_ids(names_without_ids)
+            for n in names_without_ids:
+                if n not in teacher_ids:
+                    log.warning('Unknown teacher "%r" - no teacher id!', n)
+            for n in names_with_ids:
+                name, _, tid = n.partition('@')
+                teacher_ids[name] = int(tid)
+            for teacher, teacher_id in teacher_ids.items():
                 try:
                     log.debug('Querying new timetable for %s', teacher)
-                    timetable = await adapter.download_teacher_timetable(teacher_ids[teacher])
+                    timetable = await adapter.download_teacher_timetable(teacher_id)
                     # обновляем полный список курсов
                     courses.update(timetable.get_all_courses())
                     log.debug('Reading old timetable for teacher %s', teacher)

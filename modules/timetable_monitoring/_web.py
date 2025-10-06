@@ -41,7 +41,7 @@ async def handle_root():
 @blueprint.get('/teachers')
 async def handle_teachers():
     """Таблица расписаний преподавателей."""
-    teachers = list(web_context.config.teachers.keys())
+    teachers = [name.partition('@')[0] for name in web_context.config.teachers.keys()]
     timetables: dict[str, Timetable] = await web_context.ttrepo.load_teachers_timetables(teachers)
     updates = await web_context.ttrepo.load_update_timestamps()
     update_times = [
