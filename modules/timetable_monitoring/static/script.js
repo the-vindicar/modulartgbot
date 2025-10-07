@@ -1,13 +1,16 @@
 function onLoad(){
     'use strict';
+    document.querySelectorAll('.active').forEach((item) => {
+        item.className = item.className.replace(/\bactive\b/);
+    });
+
     const anchor = decodeURIComponent(window.location.hash.substring(1));
     if (!anchor) return;
-    const cells = document.querySelectorAll('th, td');
-    for (let i = 0; i < cells.length; i++)
-    {
-        const colname = cells[i].getAttribute('data-name');
+    document.querySelectorAll('th, td').forEach((cell) => {
+        const colname = cell.getAttribute('data-name');
         if (colname == anchor)
-            cells[i].className += ' active'
-    }
+            cell.className += ' active'
+    });
 }
 window.addEventListener('DOMContentLoaded', onLoad);
+window.addEventListener('hashchange', onLoad);

@@ -14,7 +14,7 @@ html, body {
 .wrapper {
     scroll-snap-type: x mandatory;
     width: 100%;
-    height: 99%;
+    height: 99.9%;
     position: relative;
     overflow: auto;
 }
@@ -159,5 +159,6 @@ th .roomequip.roomequip-seats::before { content: "\e002"; }
 th .roomequip.roomequip-windows::before { content: "\e004"; }
 th .roomequip.roomequip-ubuntu::before { content: "\e005"; }
 th .roomequip.roomequip-altlinux::before { content: "\e006"; }
+th .roomequip.roomequip-osn::before { content: "\e006"; }
 th .roomequip.roomequip-office::before { content: "\e007"; }
 th .roomequip.roomequip-visualstudio::before { content: "\e008"; }
