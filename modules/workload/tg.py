@@ -1,6 +1,8 @@
 """Реализует логику Telegram-бота для работы с нагрузкой."""
+import typing as t
 from io import BytesIO
 import logging
+import dataclasses
 import datetime
 from pathlib import Path
 
@@ -11,14 +13,27 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 import openpyxl
 
-from .parsing import parse_workload, fill_template, TeacherWorkload
+from .workload_parsing import parse_workload, TeacherWorkload
+from .workload_templating import fill_template
+from .timeplan_parsing import TimePlanParser
+from .models import WorkloadRepository
 
 
-__all__ = ['router', 'log', 'template_path']
-router = Router(name='workload')
-log = logging.getLogger('modules.workload')
-template_path = Path(__file__).parent / 'template.xlsx'
-cache: dict[int, tuple[str, dict[str, TeacherWorkload]]] = {}
+__all__ = ['context']
+
+
+@dataclasses.dataclass
+class WorkloadContext:
+    """Глобальный контекст для модуля."""
+    router = Router(name='workload')
+    log = logging.getLogger('modules.workload')
+    template_path = Path(__file__).parent / 'template.xlsx'
+    cache: dict[int, tuple[str, dict[str, TeacherWorkload]]] = dataclasses.field(default_factory=dict)
+    timeplan_parser: t.Optional[TimePlanParser] = None
+    repository: t.Optional[WorkloadRepository] = None
+
+
+context = WorkloadContext()
 
 
 class WorkloadStates(StatesGroup):
@@ -27,10 +42,10 @@ class WorkloadStates(StatesGroup):
     ExpectingName = State()
 
 
-@router.message(Command('workload'))
+@context.router.message(Command('workload'))
 async def workload_cmd(msg: Message, state: FSMContext):
     """Позволяет создать упрощённую выжимку из данных о нагрузке."""
-    if not template_path.is_file():
+    if not context.template_path.is_file():
         await msg.answer('Извините, команда недоступна. Сообщите администратору.')
         return
     await state.set_state(WorkloadStates.ExpectingFile)
@@ -38,22 +53,22 @@ async def workload_cmd(msg: Message, state: FSMContext):
                      'Для отмены отправьте /no')
 
 
-@router.message(Command('no'), or_f(WorkloadStates.ExpectingName, WorkloadStates.ExpectingFile))
+@context.router.message(Command('no'), or_f(WorkloadStates.ExpectingName, WorkloadStates.ExpectingFile))
 async def cancel(msg: Message, state: FSMContext):
     """Отменяет операцию."""
     await state.set_state(None)
-    cache.pop(msg.from_user.id, None)
+    context.cache.pop(msg.from_user.id, None)
     await msg.reply('Операция завершена.', reply_markup=ReplyKeyboardRemove(selective=True))
 
 
-@router.message(WorkloadStates.ExpectingFile)
+@context.router.message(WorkloadStates.ExpectingFile)
 async def receive_document(msg: Message, state: FSMContext):
     """Обрабатывает переданный файл."""
     if not msg.document:
         await msg.answer('Простите, но вы не приложили файл к сообщению.')
         return
     if not msg.document.file_name or not msg.document.file_name.lower().endswith('.xlsx'):
-        await msg.answer('Простите, но приложенный файл не является Excel-файлом.')
+        await msg.answer('Простите, но приложенный файл не является Excel-файлом в формате XLSX.')
         return
     try:
         target = BytesIO()
@@ -64,7 +79,7 @@ async def receive_document(msg: Message, state: FSMContext):
         if len(workloads) == 0:
             raise ValueError('No data returned! len(workloads) == 0')
     except Exception as err:
-        log.warning('Failed to process workload file! File id: %s', msg.document.file_id, exc_info=err)
+        context.log.warning('Failed to process workload file! File id: %s', msg.document.file_id, exc_info=err)
         await msg.reply('Простите, но мне не удалось обработать этот файл.\r\n'
                         'Убедитесь, что он корректен, или обратитесь к администратору.\r\n'
                         f'Покажите ему файл и сообщите этот ID: `{msg.document.file_id}`')
@@ -74,7 +89,7 @@ async def receive_document(msg: Message, state: FSMContext):
             await msg.answer('В файле данные только для одного предподавателя. Вот они.')
             await handle_name(msg, all_names[0])
         else:
-            cache[msg.from_user.id] = msg.document.file_id, workloads
+            context.cache[msg.from_user.id] = msg.document.file_id, workloads
             await state.set_state(WorkloadStates.ExpectingName)
             btns = [KeyboardButton(text=name) for name in all_names]
             N = 3  # сколько кнопок в строке
@@ -85,15 +100,15 @@ async def receive_document(msg: Message, state: FSMContext):
                             'Введите /no, когда закончите.', reply_markup=markup)
 
 
-@router.message(WorkloadStates.ExpectingName)
+@context.router.message(WorkloadStates.ExpectingName)
 async def receive_name(msg: Message, state: FSMContext):
     """Принимает имя преподавателя для извлечения нагрузки."""
     name = msg.text.strip()
-    if msg.from_user.id not in cache:
+    if msg.from_user.id not in context.cache:
         await state.set_state(None)
         await msg.answer('Что-то пошло не так! Попробуйте начать с начала (с команды /workload ).')
         return
-    file_id, workloads = cache[msg.from_user.id]
+    file_id, workloads = context.cache[msg.from_user.id]
     if name in workloads:
         await handle_name(msg, name)
     else:
@@ -106,13 +121,13 @@ async def receive_name(msg: Message, state: FSMContext):
 
 async def handle_name(msg: Message, name: str) -> None:
     """Обрабатывает имя. Оно уже заведомо корректно."""
-    file_id, workloads = cache[msg.from_user.id]
+    file_id, workloads = context.cache[msg.from_user.id]
     workload = workloads[name]
     now = datetime.datetime.now()
     year = now.year if 7 <= now.month <= 12 else (now.year - 1)
 
     try:
-        result = fill_template(template_path, year, workload)
+        result = fill_template(context.template_path, year, workload)
         buffer = BytesIO()
         result.save(buffer)
         buffer.seek(0)
@@ -121,6 +136,6 @@ async def handle_name(msg: Message, name: str) -> None:
                                                 'Даты выполнения нагрузки ориентировочные '
                                                 'и могут потребовать коррекции.')
     except Exception as err:
-        log.warning('Failed to respond with workload! File ID: %s', file_id, exc_info=err)
+        context.log.warning('Failed to respond with workload! File ID: %s', file_id, exc_info=err)
         await msg.answer('Простите, но что-то пошло не так при подготовке данных.\r\n'
                          f'Обратитесь к администратору и сообщите этот ID: `{file_id}`')
