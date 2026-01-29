@@ -29,7 +29,6 @@ class WorkloadContext:
     log = logging.getLogger('modules.workload')
     template_path = Path(__file__).parent / 'template.xlsx'
     cache: dict[int, tuple[str, dict[str, TeacherWorkload]]] = dataclasses.field(default_factory=dict)
-    timeplan_parser: t.Optional[TimePlanParser] = None
     repository: t.Optional[WorkloadRepository] = None
 
 

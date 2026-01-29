@@ -10,6 +10,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.cell.cell import Cell
 
 from .workload_parsing import TeacherWorkload, LoadUnit, WorkloadType, Activity, EducationType, ExamType
+from .timeplan_parsing import GroupPlan, TimePlanActivity
 
 
 __all__ = ['fill_template']
@@ -51,26 +52,6 @@ def set_dates(ws: Worksheet, year: int, start_month: int) -> list[datetime.datet
     return dates
 
 
-def fix_groups(groups: set[str]) -> str:
-    """Преобразует строку с перечислением групп.
-    :param groups: Множество строк вида "21-ИСбо-1" или "21-ИИмз-1".
-    :returns: Строка вида "21-ИСбо-1,2,4; 21-ИИбо-1".
-    """
-    splits: list[tuple[str, str, str]] = [g.rpartition('-') for g in groups]
-    splits.sort(key=lambda item: item[0])
-    result = ''
-    last_prefix = None
-    for prefix, _, number in splits:
-        if prefix != last_prefix:
-            if last_prefix is not None:
-                result += '; '
-            result += f'{prefix}-{number}'
-            last_prefix = prefix
-        else:
-            result += f',{number}'
-    return result
-
-
 def combine_groups(groups: list[str], hours: list[float], exam_hours: list[float]) -> tuple[str, str, str]:
     """Соединяет список групп с указанными часами в более компактное представление.
     Также объединяет часы в текст формулы Excel. Например, вызов:
@@ -105,8 +86,13 @@ def combine_groups(groups: list[str], hours: list[float], exam_hours: list[float
     return group, '='+hour_formula[1:], '='+exam_formula[1:]
 
 
-def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workbook:
-    """Заполняет шаблон нагрузки на указанный год, используя указанные сведения."""
+def fill_template(template: Path, year: int, workload: TeacherWorkload,
+                  plans: t.Collection[GroupPlan] = tuple()) -> Workbook:
+    """Заполняет шаблон нагрузки на указанный год, используя указанные сведения.
+    :param template: Путь к файлу с заполняемым шаблоном.
+    :param year: Год начала курса (меньший из двух).
+    :param workload: Нагрузка преподавателя.
+    :param plans: Коллекция доступных план-графиков для групп."""
     LOAD_NAMES = {
         WorkloadType.MAIN: 'основная',
         WorkloadType.HOURLY: 'почасовая',
@@ -130,6 +116,10 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
         ExamType.DIFFPASS: 'дифф.зачёт',
     }
     GROUP_NAMES = ['а', 'б']
+    ACTIVITY_MAP: dict[Activity, tuple[TimePlanActivity, ...]] = {
+        Activity.INTERNSHIP: (TimePlanActivity.INDUSTRY_PRACTICE, TimePlanActivity.STUDY_PRACTICE),
+        Activity.GRADPROJECT: (TimePlanActivity.GRAD_PROJECT,),
+    }
     wb = openpyxl.load_workbook(template, rich_text=True, data_only=False)
     workload = {lt: units.copy() for lt, units in workload.items()}
     if WorkloadType.G in workload:  # Я не знаю, что такое g, так что обозначаю её как обычную нагрузку
@@ -140,15 +130,15 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
     autumn_dates = set_dates(autumn_s, year, 9)
     spring_s = wb['Весна']
     spring_dates = set_dates(spring_s, year+1, 2)
-    pages: list[tuple[TeacherWorkload, Worksheet, list[datetime.datetime]]] = [
-        (autumn, autumn_s, autumn_dates),
-        (spring, spring_s, spring_dates),
+    pages: list[tuple[TeacherWorkload, Worksheet, list[datetime.datetime], str]] = [
+        (autumn, autumn_s, autumn_dates, 'autumn'),
+        (spring, spring_s, spring_dates, 'spring'),
     ]
     if unknown and any(unknown.values()):
         unknown_s = wb.copy_worksheet(autumn_s)
         unknown_s.title = 'НЕ ОПРЕДЕЛЕНО'
-        pages.append((unknown, unknown_s, autumn_dates))
-    for data, sheet, dates in pages:
+        pages.append((unknown, unknown_s, autumn_dates, ''))
+    for data, sheet, dates, pageid in pages:
         if sheet.freeze_panes:
             cell: Cell = sheet[sheet.freeze_panes]
             row, startcol = cell.row, cell.column
@@ -165,7 +155,13 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
             groups = []
             hours = []
             exam_hours = []
+            plan = None
             for unit in load:
+                plan = None
+                for p in plans:
+                    if p.group_code == unit.group:
+                        plan = p
+                        break
                 if current_key != (unit.education_level, unit.course, unit.activity):
                     if current_key is not None:  # мы не в самом начале цикла?
                         # добавляем элемент нагрузки в шаблон
@@ -178,8 +174,13 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                             sheet.cell(row=row, column=startcol+2,
                                        value=ACTIVITY_NAMES.get(start.activity, start.activity))
                             sheet.cell(row=row, column=startcol+3, value=groupnames)
-                            sheet.cell(row=row, column=startcol+4).value = dates[0]
-                            sheet.cell(row=row, column=startcol+5).value = dates[-1] - datetime.timedelta(days=1)
+                            plan_activity = ACTIVITY_MAP.get(start.activity, tuple())
+                            if plan is None or not pageid or not plan_activity:
+                                startdate, enddate = dates[0], dates[-1] - datetime.timedelta(days=1)
+                            else:
+                                startdate, enddate = plan.get_interval(pageid, *plan_activity)
+                            sheet.cell(row=row, column=startcol + 4).value = startdate
+                            sheet.cell(row=row, column=startcol + 5).value = enddate
                             sheet.cell(row=row, column=startcol+6, value=hourformula)
                             row += 1
                         if sum(exam_hours) > 0 and start.exam is not None:  # есть экзамен или зачёт
@@ -187,10 +188,13 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                             sheet.cell(row=row, column=startcol+1, value=start.course)
                             sheet.cell(row=row, column=startcol+2,
                                        value=EXAM_NAMES.get(start.exam, start.exam.value))
-                            sheet.cell(row=row, column=startcol+4).value = dates[-1]
-                            sheet.cell(row=row, column=startcol+5).value = (
-                                    dates[-1].replace(month=dates[-1].month + 1) - datetime.timedelta(days=1)
-                            )
+                            if plan is None or not pageid:
+                                startdate = dates[-1]
+                                enddate = dates[-1].replace(month=dates[-1].month + 1) - datetime.timedelta(days=1)
+                            else:
+                                startdate, enddate = plan.get_interval(pageid, TimePlanActivity.EXAM)
+                            sheet.cell(row=row, column=startcol + 4).value = startdate
+                            sheet.cell(row=row, column=startcol + 5).value = enddate
                             sheet.cell(row=row, column=startcol+3, value=groupnames)
                             sheet.cell(row=row, column=startcol+6, value=examformula)
                             row += 1
@@ -219,18 +223,26 @@ def fill_template(template: Path, year: int, workload: TeacherWorkload) -> Workb
                     sheet.cell(row=row, column=startcol+1, value=start.course)
                     sheet.cell(row=row, column=startcol+2, value=ACTIVITY_NAMES.get(start.activity, start.activity))
                     sheet.cell(row=row, column=startcol+3, value=groupnames)
-                    sheet.cell(row=row, column=startcol+4).value = dates[0]
-                    sheet.cell(row=row, column=startcol+5).value = dates[-1] - datetime.timedelta(days=1)
+                    plan_activity = ACTIVITY_MAP.get(start.activity, tuple())
+                    if plan is None or not pageid or not plan_activity:
+                        startdate, enddate = dates[0], dates[-1] - datetime.timedelta(days=1)
+                    else:
+                        startdate, enddate = plan.get_interval(pageid, *plan_activity)
+                    sheet.cell(row=row, column=startcol + 4).value = startdate
+                    sheet.cell(row=row, column=startcol + 5).value = enddate
                     sheet.cell(row=row, column=startcol+6, value=hourformula)
                     row += 1
                 if sum(exam_hours) > 0 and start.exam is not None:  # есть экзамен или зачёт
                     sheet.cell(row=row, column=startcol+0, value=LOAD_NAMES[loadtype])
                     sheet.cell(row=row, column=startcol+1, value=start.course)
                     sheet.cell(row=row, column=startcol+2, value=EXAM_NAMES.get(start.exam, start.exam.value))
-                    sheet.cell(row=row, column=startcol+4).value = dates[-1]
-                    sheet.cell(row=row, column=startcol+5).value = (
-                            dates[-1].replace(month=dates[-1].month+1) - datetime.timedelta(days=1)
-                    )
+                    if plan is None or not pageid:
+                        startdate = dates[-1]
+                        enddate = dates[-1].replace(month=dates[-1].month + 1) - datetime.timedelta(days=1)
+                    else:
+                        startdate, enddate = plan.get_interval(pageid, TimePlanActivity.EXAM)
+                    sheet.cell(row=row, column=startcol + 4).value = startdate
+                    sheet.cell(row=row, column=startcol + 5).value = enddate
                     sheet.cell(row=row, column=startcol+3, value=groupnames)
                     sheet.cell(row=row, column=startcol+6, value=examformula)
                     row += 1

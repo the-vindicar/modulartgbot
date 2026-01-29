@@ -12,6 +12,8 @@ from urllib.parse import urljoin
 import aiohttp
 import pdfplumber
 
+
+__all__ = ['TimePlanActivity', 'TimePlanParser', 'GroupPlan']
 TableData = list[list[t.Optional[str]]]
 
 
@@ -36,19 +38,19 @@ class GroupPlan(t.Mapping[datetime.date, TimePlanActivity]):
     year: int
     activity: tuple[TimePlanActivity, ...]
 
-    def get_interval(self, semester: t.Literal['autumn', 'spring'], activity: TimePlanActivity
+    def get_interval(self, semester: t.Literal['autumn', 'spring'] | str, *activity: TimePlanActivity
                      ) -> tuple[datetime.date, datetime.date]:
         """Возвращает интервал дат, в который умещаются все дни с заданным типом активности.
         :param semester: Какой семестр анализируем.
-        :param activity: Какую активность ищем.
+        :param activity: Какие виды активности ищем.
         :returns: Кортеж вида "первый день, последний день"."""
         if semester == 'autumn':
             start_date, end_date = self.autumn_start, self.autumn_end
         else:
             start_date, end_date = self.autumn_end + datetime.timedelta(days=1), self.spring_end
-        while start_date < end_date and self[start_date] != activity:
+        while start_date < end_date and self[start_date] not in activity:
             start_date += datetime.timedelta(days=1)
-        while start_date < end_date and self[end_date] != activity:
+        while start_date < end_date and self[end_date] not in activity:
             end_date -= datetime.timedelta(days=1)
         return start_date, end_date
 

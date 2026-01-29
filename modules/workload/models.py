@@ -2,7 +2,7 @@
 import typing as t
 from datetime import datetime
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, VARCHAR
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from sqlalchemy.dialects.postgresql import insert as upsert, ARRAY
@@ -24,7 +24,8 @@ class TimeplanCache(WorkloadBase):
     year: Mapped[int] = mapped_column(primary_key=True, index=True, comment='Год')
     specialty_code: Mapped[str] = mapped_column(nullable=False, index=True, comment='Код специальности')
     specialty_name: Mapped[str] = mapped_column(nullable=False, index=False, comment='Наименование специальности')
-    activities: ARRAY[str] = mapped_column(nullable=False, comment='План-график, начиная с 1 сентября')
+    activities: Mapped[list[str]] = mapped_column(ARRAY(VARCHAR), nullable=False,
+                                                  comment='План-график, начиная с 1 сентября')
 
 
 class WorkloadRepository:
