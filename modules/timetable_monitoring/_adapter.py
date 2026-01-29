@@ -123,7 +123,10 @@ class KSUTimetableAdapter:
             lesson_teacher = str(item['преподаватель'])
             lesson_groups = str(item['группа'])
             lesson_course = str(item['дисциплина'])
-            lesson_type, lesson_course = lesson_course.split(' ', 1)
+            if lesson_course.startswith(('лаб', 'лек', 'пр.')):
+                lesson_type, lesson_course = lesson_course.split(' ', 1)
+            else:
+                lesson_type = ''
             for suffix, subgroup in Timetable.SUBGROUPS.items():
                 if lesson_course.endswith(suffix):
                     lesson_course = lesson_course[:-len(suffix)]
