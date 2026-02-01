@@ -12,7 +12,7 @@ import aiogram
 from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from api import CoreAPI, background_task
+from api import CoreAPI, background_task, log_ticker
 from modules.users import UserRepository, NameStyle, SiteUser, tg_is_site_admin
 from ._classes import *
 from .models import TimetableRepository
@@ -65,67 +65,67 @@ class TimetableTracker:
         notifications: list[tuple[SiteUser, list[TimetableSlotChange]]] = []
         courses: set[str] = set()
         mindelay = datetime.timedelta(seconds=cfg.website_delay)
-        async with KSUTimetableAdapter(request_interval=mindelay) as adapter:  # устанавливаем соединение с сайтом
-            # выясняем, какие ID у преподавателей в нашем списке
-            all_names = list(cfg.teachers.keys())
-            names_with_ids = [n for n in all_names if '@' in n]
-            names_without_ids = [n for n in all_names if '@' not in n]
-            teacher_ids = await adapter.download_teacher_ids(names_without_ids)
-            for n in names_without_ids:
-                if n not in teacher_ids:
-                    log.warning('Unknown teacher "%r" - no teacher id!', n)
-            for n in names_with_ids:
-                name, _, tid = n.partition('@')
-                teacher_ids[name] = int(tid)
-            for teacher, teacher_id in teacher_ids.items():
-                try:
-                    log.debug('Querying new timetable for %s', teacher)
-                    timetable = await adapter.download_teacher_timetable(teacher_id)
-                    # обновляем полный список курсов
-                    courses.update(timetable.get_all_courses())
-                    log.debug('Reading old timetable for teacher %s', teacher)
-                    old_timetable = await self.ttrepo.load_teacher_timetable(teacher)
-                    log.debug('Storing timetable for %s', teacher)
-                    await self.ttrepo.store_teacher_timetable(teacher, timetable)
-                    if old_timetable is not None:
-                        changes = timetable.changes_from(old_timetable)
-                        log.debug('%d changes for %s', len(changes), teacher)
-                        if changes:
-                            await self.ttrepo.bump_update_timestamp(teacher)
-                            userlist = await self.userrepo.get_by_name(teacher, NameStyle.LastFP)
-                            if len(userlist) == 1:
-                                notifications.append((userlist[0], changes))
-                except Exception as err:
-                    if isinstance(err, aiohttp.ClientResponseError):
-                        log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
-                                  teacher, err.status, repr(err.headers), exc_info=err)
+        async with log_ticker(log, 'Идёт чтение расписания (прошло {})...', 30):
+            async with KSUTimetableAdapter(request_interval=mindelay) as adapter:  # устанавливаем соединение с сайтом
+                # выясняем, какие ID у преподавателей в нашем списке
+                all_names = list(cfg.teachers.keys())
+                names_with_ids = [n for n in all_names if '@' in n]
+                names_without_ids = [n for n in all_names if '@' not in n]
+                teacher_ids = await adapter.download_teacher_ids(names_without_ids)
+                for n in names_without_ids:
+                    if n not in teacher_ids:
+                        log.warning('Unknown teacher "%r" - no teacher id!', n)
+                for n in names_with_ids:
+                    name, _, tid = n.partition('@')
+                    teacher_ids[name] = int(tid)
+                for teacher, teacher_id in teacher_ids.items():
+                    try:
+                        log.debug('Querying new timetable for %s', teacher)
+                        timetable = await adapter.download_teacher_timetable(teacher_id)
+                        # обновляем полный список курсов
+                        courses.update(timetable.get_all_courses())
+                        log.debug('Reading old timetable for teacher %s', teacher)
+                        old_timetable = await self.ttrepo.load_teacher_timetable(teacher)
+                        log.debug('Storing timetable for %s', teacher)
+                        await self.ttrepo.store_teacher_timetable(teacher, timetable)
+                        if old_timetable is not None:
+                            changes = timetable.changes_from(old_timetable)
+                            log.debug('%d changes for %s', len(changes), teacher)
+                            if changes:
+                                await self.ttrepo.bump_update_timestamp(teacher)
+                                userlist = await self.userrepo.get_by_name(teacher, NameStyle.LastFP)
+                                if len(userlist) == 1:
+                                    notifications.append((userlist[0], changes))
+                    except Exception as err:
+                        if isinstance(err, aiohttp.ClientResponseError):
+                            log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
+                                      teacher, err.status, repr(err.headers), exc_info=err)
+                        else:
+                            log.error('Failed to update the timetable for %s', teacher, exc_info=err)
                     else:
-                        log.error('Failed to update the timetable for %s', teacher, exc_info=err)
-                else:
-                    log.debug('Updated timetable for %s', teacher)
-            # выясняем ID аудиторий
-            room_ids = await adapter.download_room_ids()
-            for room in cfg.rooms:
-                room_id = room_ids.get(room, None)
-                if room_id is None:
-                    log.warning('Unknown room "%s" - no room id!', room)
-                    continue
-                try:
-                    log.debug('Querying new timetable for room %s', room)
-                    timetable = await adapter.download_room_timetable(room_id)
-                    courses.update(timetable.get_all_courses())
-                    # так как нет нужды вычислять изменения для аудитории, мы просто заменяем её расписание на новое
-                    log.debug('Storing timetable for %s', room)
-                    await self.ttrepo.store_room_timetable(room, timetable)
-                except Exception as err:
-                    if isinstance(err, aiohttp.ClientResponseError):
-                        log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
-                                  room, err.status, repr(err.headers), exc_info=err)
+                        log.debug('Updated timetable for %s', teacher)
+                # выясняем ID аудиторий
+                room_ids = await adapter.download_room_ids()
+                for room in cfg.rooms:
+                    room_id = room_ids.get(room, None)
+                    if room_id is None:
+                        log.warning('Unknown room "%s" - no room id!', room)
+                        continue
+                    try:
+                        log.debug('Querying new timetable for room %s', room)
+                        timetable = await adapter.download_room_timetable(room_id)
+                        courses.update(timetable.get_all_courses())
+                        # так как нет нужды вычислять изменения для аудитории, мы просто заменяем её расписание на новое
+                        log.debug('Storing timetable for %s', room)
+                        await self.ttrepo.store_room_timetable(room, timetable)
+                    except Exception as err:
+                        if isinstance(err, aiohttp.ClientResponseError):
+                            log.error('Failed to update the timetable for %s.\n[%d] Headers: %s',
+                                      room, err.status, repr(err.headers), exc_info=err)
+                        else:
+                            log.error('Failed to update the timetable for %s', room, exc_info=err)
                     else:
-                        log.error('Failed to update the timetable for %s', room, exc_info=err)
-                else:
-                    log.debug('Updated timetable for %s', room)
-
+                        log.debug('Updated timetable for %s', room)
         courses.difference_update(cfg.course_shortnames.keys())
         cfg.course_shortnames.update({c: None for c in courses})
         await self.api.config.save('timetable_monitoring', cfg)
