@@ -65,7 +65,11 @@ class MoodleMessageBot:
             backoff = ExponentialBackoff(base=interval, quotient=2, sleep_on_success='base',
                                          jitter=0.25*interval, cap=datetime.timedelta(hours=1))
             while True:
-                unread = await self._moodle.function.core_message.get_unread_conversations_count(self._moodle.me.id)
+                try:
+                    unread = await self._moodle.function.core_message.get_unread_conversations_count(self._moodle.me.id)
+                except MoodleError as err:
+                    self._log.warning('Failed to query unread messages: ', exc_info=err)
+                    unread = 0
                 if unread > 0:
                     try:
                         messages = await self._moodle.function.core_message.get_messages(
