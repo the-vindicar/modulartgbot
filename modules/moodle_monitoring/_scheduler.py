@@ -111,7 +111,9 @@ class Scheduler:
                 self.__log.error('Failed to update assignments!', exc_info=err)
             else:
                 self.__log.info('Assignments updated successfully for course(s) %s',
-                                ', '.join(f'#{cid}({len(assigns)})' for cid, assigns in known_assignments.items()))
+                                ', '.join(
+                                    f'#{cid}({len(known_assignments.get(cid, []))} items)' for cid in course_ids
+                                ))
 
     async def _check_submissions_active(self, now: datetime.datetime, forced: bool) -> None:
         """Проверяет, нет ли новых ответов на задания, которые завершаются ещё не скоро."""
