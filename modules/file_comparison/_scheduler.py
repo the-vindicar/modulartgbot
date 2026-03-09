@@ -25,7 +25,7 @@ async def scheduler(
                     datetime.timedelta(days=cfg.ignore_files_older_than_days)
                     if cfg.ignore_files_older_than_days else None
                 )
-                async with log_ticker(log, 'Идёт загрузка работ (прошло {})...', 30):
+                async with log_ticker(log, 'Loading submitted files ({} elapsed)...', 30):
                     missing_digest_stream = repo.stream_files_with_missing_digests(
                         available_digest_types=manager.available_digests,
                         max_age=max_age,
@@ -42,7 +42,7 @@ async def scheduler(
                     log.info('Stored %d new digests and %d new warnings.', digest_count, warning_count)
                 else:
                     log.debug('No new digests or warnings to store.')
-                async with log_ticker(log, 'Идёт сравнение работ (прошло {})...', 30):
+                async with log_ticker(log, 'Comparing files ({} elapsed)...', 30):
                     missing_comparison_stream = repo.stream_missing_comparisons(max_age_diff=max_age)
                     new_comparison_stream = manager.compare_digests(missing_comparison_stream)
                     comp_count = 0
