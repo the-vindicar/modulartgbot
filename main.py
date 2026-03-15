@@ -13,10 +13,9 @@ async def main():
     from pathlib import Path
     import typing as t
 
-    import quart
     from dotenv import load_dotenv
 
-    from api import modules_lifespan, ConfigManagerImpl, setup_logging, PrefixedQuartMap
+    from api import modules_lifespan, ConfigManagerImpl, setup_logging, PatchedQuart
 
     load_dotenv()
     data = Path(os.environ.get('MULTIBOT_DATA', str(Path(sys.argv[0]).parent / 'data')))
@@ -32,8 +31,7 @@ async def main():
         certfile: t.Optional[str] = None
         keyfile: t.Optional[str] = None
 
-    quart.Quart.url_map_class = PrefixedQuartMap
-    app = quart.Quart(__name__)
+    app = PatchedQuart(__name__)
 
     @app.while_serving
     async def context():
@@ -58,6 +56,7 @@ async def main():
     await app.run_task(
         web_cfg.host, web_cfg.port,
         ca_certs=web_cfg.ca_certs, certfile=web_cfg.certfile, keyfile=web_cfg.keyfile,
+        startup_timeout=300.0, shutdown_timeout=60.0
     )
 
 
