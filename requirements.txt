@@ -5,6 +5,7 @@ python-dotenv
 asyncpg
 sqlalchemy[asyncio]~=2.0.41
 aiohttp~=3.12.14
+aiohttp-socks
 quart~=0.20.0
 quart-auth
 aiogram~=3.21.0

@@ -11,6 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection
 
 import aiogram
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.base import BaseStorage, StorageKey, StateType, KeyBuilder, DefaultKeyBuilder
 from aiogram.fsm.storage.memory import MemoryStorage, SimpleEventIsolation
@@ -89,6 +90,7 @@ async def lifetime(api: CoreAPI):
     """Тело модуля."""
     log = logging.getLogger('modules.telegram')
     log.info('Preparing telegram bot...')
+    proxy = os.environ.get('TELEGRAM_PROXY', '') or None
     bot_token = os.environ['TELEGRAM_BOT_TOKEN']
     temp_storage = os.environ.get('TELEGRAM_FSM_TEMP_STORAGE', '0').lower() in ('1', 'yes', 'on', 'true')
     if temp_storage:
@@ -100,8 +102,9 @@ async def lifetime(api: CoreAPI):
         storage = PostgreStorage(engine)
         await storage.create_table()
         log.debug('Database storage ready.')
+    session = AiohttpSession(proxy=proxy)
     tgdispatcher = aiogram.Dispatcher(storage=storage, events_isolation=SimpleEventIsolation())
-    bot = aiogram.Bot(token=bot_token, default=DefaultBotProperties(parse_mode='HTML'))
+    bot = aiogram.Bot(token=bot_token, session=session, default=DefaultBotProperties(parse_mode='HTML'))
     api.register_api_provider(bot, aiogram.Bot)
     api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')
