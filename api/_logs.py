@@ -88,7 +88,7 @@ async def setup_logging(cfg: ConfigManager, app: quart.Quart):
         logging.root.addHandler(fhandler)
     for logname, level in logcfg.levels.items():
         logger = logging.getLogger(logname)
-        level = level.strip()
+        level = level.strip() if level else level
         if level:
             logger.disabled = False
             try:
