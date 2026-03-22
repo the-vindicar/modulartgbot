@@ -87,4 +87,13 @@ async def setup_logging(cfg: ConfigManager, app: quart.Quart):
         fhandler.setFormatter(fileformatter)
         logging.root.addHandler(fhandler)
     for logname, level in logcfg.levels.items():
-        logging.getLogger(logname).setLevel(level)
+        logger = logging.getLogger(logname)
+        level = level.strip()
+        if level:
+            logger.disabled = False
+            try:
+                logger.setLevel(level)
+            except ValueError:
+                logger.setLevel(logging.INFO)
+        else:
+            logger.disabled = True
