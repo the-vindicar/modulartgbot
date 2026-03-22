@@ -55,7 +55,7 @@ class LoggingCfg:
     file_level: str = 'DEBUG'
     stderr_level: str = 'DEBUG'
     reduced_stacktraces: bool = True
-    levels: dict[str, str] = dataclasses.field(default_factory=dict)
+    levels: dict[str, str | None] = dataclasses.field(default_factory=dict)
 
 
 async def setup_logging(cfg: ConfigManager, app: quart.Quart):
