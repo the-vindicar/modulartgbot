@@ -51,7 +51,7 @@ class PlaintextExtractor(DigestExtractorABC):
                 del parts[i]
             else:
                 parts[i] = part
-        self.log.debug('%d lines left after trimming whitespace', len(parts))
+        self.log.debug('[%s] %d lines left after trimming whitespace', filename, len(parts))
         text = b'\n'.join(parts)
         for enc in self.encodings:
             try:

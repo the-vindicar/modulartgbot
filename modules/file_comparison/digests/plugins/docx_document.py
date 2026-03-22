@@ -184,7 +184,7 @@ class DocxExtractor(DigestExtractorABC):
                                 font_lengths[font] += len(text.strip())
                     except KeyError:
                         pass
-                self.log.debug('%d lines left after trimming whitespace', len(textlines))
+                self.log.debug('[%s] %d lines left after trimming whitespace', filename, len(textlines))
                 total = sum(font_lengths.values())
                 if total > 0:
                     wrong_fonts = []

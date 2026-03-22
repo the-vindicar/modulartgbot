@@ -11,7 +11,7 @@ from .models import FileDataRepository
 class SubmissionQuery(BaseModel):
     """Параметры запроса о файлах из ответа на задание."""
     minratio: float = Field(default=0.7, ge=0.0, le=1.0, description='Допустимый уровень сходства файлов')
-    maxfiles: int = Field(default=5, ge=1, le=10, description='Сколько файлов передавать')
+    maxfiles: int = Field(default=5, ge=1, le=30, description='Сколько файлов передавать')
     shownewer: bool = Field(default=False, description='Показывать ли более новые похожие файлы')
 
 

@@ -324,12 +324,25 @@ class FileDataRepository:
         OldDigest = t.cast(t.Type[FileDigest], aliased(FileDigest, name='OldDigest'))
         NewDigest = t.cast(t.Type[FileDigest], aliased(FileDigest, name='NewDigest'))
         row_number_column = func.row_number().over(
-            partition_by=FileComparison.newer_file_id,
+            partition_by=(FileComparison.newer_file_id, FileComparison.newer_digest_type), 
             order_by=FileComparison.similarity_score.desc()
         ).label('row_number')
         results: dict[str, FileDetails] = defaultdict(FileDetails)
         file_ids: dict[int, str] = {}
         async with self.__sessionmaker() as session:
+            # сравнения с добавленными номерами строк
+            numbered_comparisons = (
+                select(
+                    FileComparison.newer_file_id,
+                    FileComparison.newer_digest_type,
+                    FileComparison.older_file_id,
+                    FileComparison.older_digest_type,
+                    FileComparison.similarity_score,
+                    row_number_column,
+                )
+                .where(FileComparison.similarity_score > min_score)
+                .subquery()
+            )
             # формируем список более ранних похожих файлов
             older_files_subquery = (
                 select(
@@ -340,27 +353,30 @@ class FileDataRepository:
                     OldDigest.user_name,
                     OldDigest.user_id,
                     OldDigest.submission_id,
-                    FileComparison.similarity_score,
-                    row_number_column,
+                    numbered_comparisons.c.similarity_score,
+                    numbered_comparisons.c.row_number,
                 )
                 .select_from(NewDigest)
-                .outerjoin(FileComparison, onclause=and_(
-                    (NewDigest.file_id == FileComparison.newer_file_id),
-                    (NewDigest.digest_type == FileComparison.newer_digest_type),
-                    (FileComparison.similarity_score > min_score),
+                .outerjoin(numbered_comparisons, onclause=and_(
+                    (NewDigest.file_id == numbered_comparisons.c.newer_file_id),
+                    (NewDigest.digest_type == numbered_comparisons.c.newer_digest_type),
                 ))
                 .outerjoin(OldDigest, onclause=and_(
-                    (OldDigest.file_id == FileComparison.older_file_id),
-                    (OldDigest.digest_type == FileComparison.older_digest_type),
+                    (OldDigest.file_id == numbered_comparisons.c.older_file_id),
+                    (OldDigest.digest_type == numbered_comparisons.c.older_digest_type),
                 ))
             )
             older_files_subquery = older_files_subquery.where(NewDigest.submission_id == submission_id)
-            older_files_subquery = older_files_subquery.order_by(FileComparison.similarity_score.desc())
+            # older_files_subquery = older_files_subquery.order_by(numbered_comparisons.c.similarity_score.desc())
             older_files_subquery = older_files_subquery.subquery('older_files')
-            older_files_stmt = select(older_files_subquery).where(or_(
-                older_files_subquery.c.row_number.is_(None),
-                older_files_subquery.c.row_number <= max_similar,
-            ))
+            older_files_stmt = (
+                select(older_files_subquery)
+                .where(or_(
+                    older_files_subquery.c.row_number.is_(None),
+                    older_files_subquery.c.row_number <= max_similar,
+                ))
+                .order_by(older_files_subquery.c.similarity_score.desc())
+            )
             for row in await session.execute(older_files_stmt):
                 new_id, new_name, old_name, old_url, old_user_name, old_user_id, old_sub_id, ratio, n = row
                 file_ids[new_id] = new_name
@@ -385,27 +401,30 @@ class FileDataRepository:
                         NewDigest.user_name,
                         NewDigest.user_id,
                         NewDigest.submission_id,
-                        FileComparison.similarity_score,
-                        row_number_column,
+                        numbered_comparisons.c.similarity_score,
+                        numbered_comparisons.c.row_number,
                     )
                     .select_from(OldDigest)
-                    .outerjoin(FileComparison, onclause=and_(
-                        (OldDigest.file_id == FileComparison.older_file_id),
-                        (OldDigest.digest_type == FileComparison.older_digest_type),
-                        (FileComparison.similarity_score > min_score),
+                    .outerjoin(numbered_comparisons, onclause=and_(
+                        (OldDigest.file_id == numbered_comparisons.c.older_file_id),
+                        (OldDigest.digest_type == numbered_comparisons.c.older_digest_type),
                     ))
                     .outerjoin(NewDigest, onclause=and_(
-                        (NewDigest.file_id == FileComparison.newer_file_id),
-                        (NewDigest.digest_type == FileComparison.newer_digest_type),
+                        (NewDigest.file_id == numbered_comparisons.c.newer_file_id),
+                        (NewDigest.digest_type == numbered_comparisons.c.newer_digest_type),
                     ))
                 )
                 newer_files_subquery = newer_files_subquery.where(OldDigest.submission_id == submission_id)
-                newer_files_subquery = newer_files_subquery.order_by(FileComparison.similarity_score.desc())
+                # newer_files_subquery = newer_files_subquery.order_by(numbered_comparisons.c.similarity_score.desc())
                 newer_files_subquery = newer_files_subquery.subquery('newer_files')
-                newer_files_stmt = select(newer_files_subquery).where(or_(
-                    newer_files_subquery.c.row_number.is_(None),
-                    newer_files_subquery.c.row_number <= max_similar,
-                ))
+                newer_files_stmt = (
+                    select(newer_files_subquery)
+                    .where(or_(
+                        newer_files_subquery.c.row_number.is_(None),
+                        newer_files_subquery.c.row_number <= max_similar,
+                    ))
+                    .order_by(newer_files_subquery.c.similarity_score.desc())
+                )
                 for row in await session.execute(newer_files_stmt):
                     old_name, new_name, new_url, new_user_name, new_user_id, new_sub_id, ratio, n = row
                     details = results[old_name]
