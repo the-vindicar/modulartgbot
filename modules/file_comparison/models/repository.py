@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import logging
 
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, func
 from sqlalchemy.dialects.postgresql import insert as upsert, aggregate_order_by
 from sqlalchemy.orm import aliased
 
@@ -367,7 +367,7 @@ class FileDataRepository:
                 .order_by(older_files_subquery.c.similarity_score.desc())
             )
             for row in await session.execute(older_files_stmt):
-                new_id, new_name, old_name, old_url, old_user_name, old_user_id, old_sub_id, ratio, n = row
+                new_id, new_name, old_name, old_url, old_user_name, old_user_id, old_sub_id, ratio = row
                 file_ids[new_id] = new_name
                 details = results[new_name]
                 if ratio is not None and len(details.earlier_files) < max_similar:
@@ -409,7 +409,7 @@ class FileDataRepository:
                     .order_by(newer_files_subquery.c.similarity_score.desc())
                 )
                 for row in await session.execute(newer_files_stmt):
-                    old_name, new_name, new_url, new_user_name, new_user_id, new_sub_id, ratio, n = row
+                    old_name, new_name, new_url, new_user_name, new_user_id, new_sub_id, ratio = row
                     details = results[old_name]
                     if ratio is not None and len(details.later_files) < max_similar:
                         sim = FileSimilarityDetails(
