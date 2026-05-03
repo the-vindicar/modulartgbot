@@ -118,6 +118,7 @@ class DocxExtractor(DigestExtractorABC):
         self.accepted_fonts: t.Collection[str] = []
         self.font_threshold: float = 0.0
         self.log: t.Optional[logging.Logger] = None
+        self.min_edit_time: int = 0
 
     def initialize(self, log: logging.Logger, settings: dict[str, t.Any]) -> None:
         self.log = log
@@ -132,6 +133,9 @@ class DocxExtractor(DigestExtractorABC):
         ))
         self.font_threshold = float(settings.get(
             'font_threshold', 0.1
+        ))
+        self.min_edit_time = int(settings.get(
+            'min_edit_time', 5
         ))
 
     @classmethod
@@ -193,4 +197,21 @@ class DocxExtractor(DigestExtractorABC):
                             wrong_fonts.append(f'{font}: {usage / total:.1%}')
                     if wrong_fonts:
                         warnings['wrong_fonts'] = '; '.join(wrong_fonts)
+            self.check_edit_time(docx, warnings)
         return {'document': b'\n'.join(textlines)}, warnings
+
+    def check_edit_time(self, docx: zipfile.ZipFile, warnings: dict[str, str]) -> None:
+        """Проверяет, сколько времени редактировался документ."""
+        try:
+            with (docx.open('docProps/app.xml', 'r') as propsfile,
+                  xml.dom.minidom.parse(propsfile) as props):
+                edit_time_node = props.getElementsByTagName('TotalTime').item(0)
+                edit_time_text = ''.join(node.data
+                                         for node in edit_time_node.childNodes
+                                         if node.nodeType == node.TEXT_NODE)
+                edit_time_minutes = int(edit_time_text)
+        except Exception:
+            warnings['edit_time'] = 'Нет сведений о времени редактирования'
+        else:
+            if edit_time_minutes < self.min_edit_time:
+                warnings['edit_time'] = f'Длительность редактирования: {edit_time_minutes} минут'
