@@ -19,6 +19,8 @@ __all__ = ['DocxExtractor']
 def _query_xml(root, *path: str) -> t.Union[xml.dom.Node, str, None]:
     current = root
     for part in path:
+        if current is None:
+            return None
         if part == '@':
             bits = [child.data for child in current.childNodes if child.nodeType == child.TEXT_NODE]
             return ''.join(bits)
@@ -198,6 +200,7 @@ class DocxExtractor(DigestExtractorABC):
                     if wrong_fonts:
                         warnings['wrong_fonts'] = '; '.join(wrong_fonts)
             self.check_edit_time(docx, warnings)
+            self.check_creator(docx, warnings)
         return {'document': b'\n'.join(textlines)}, warnings
 
     def check_edit_time(self, docx: zipfile.ZipFile, warnings: dict[str, str]) -> None:
@@ -205,13 +208,23 @@ class DocxExtractor(DigestExtractorABC):
         try:
             with (docx.open('docProps/app.xml', 'r') as propsfile,
                   xml.dom.minidom.parse(propsfile) as props):
-                edit_time_node = props.getElementsByTagName('TotalTime').item(0)
-                edit_time_text = ''.join(node.data
-                                         for node in edit_time_node.childNodes
-                                         if node.nodeType == node.TEXT_NODE)
+                edit_time_text = _query_xml(props, 'Properties', 'TotalTime', '@')
                 edit_time_minutes = int(edit_time_text)
         except Exception:
             warnings['edit_time'] = 'Нет сведений о времени редактирования'
         else:
             if edit_time_minutes < self.min_edit_time:
                 warnings['edit_time'] = f'Длительность редактирования: {edit_time_minutes} минут'
+
+    @staticmethod
+    def check_creator(docx: zipfile.ZipFile, warnings: dict[str, str]) -> None:
+        """Генерирует предупреждение с автором документа."""
+        try:
+            with (docx.open('docProps/core.xml', 'r') as propsfile,
+                  xml.dom.minidom.parse(propsfile) as props):
+                created_by = _query_xml(props, 'coreProperties', 'creator', '@') or '-нет данных-'
+                edited_by = _query_xml(props, 'coreProperties', 'lastModifiedBy', '@') or '-нет данных-'
+        except Exception:
+            warnings['author'] = 'Нет сведений об авторе.'
+        else:
+            warnings['author'] = f'Создан "{created_by}", изменён "{edited_by}"'
