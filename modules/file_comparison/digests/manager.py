@@ -93,10 +93,12 @@ class DigestManager:
                     yield file.make_empty_digests(), []
                     continue
                 try:
-                    dlresponse = await self._moodle.get_download_response(file.file_url)
                     self._log.debug('Downloading file %s from %s', file.file_name, file.file_url)
+                    dlresponse = await asyncio.wait_for(self._moodle.get_download_response(file.file_url),
+                                                        self.cfg.download_timeout_seconds)
                     async with dlresponse:
-                        content = await dlresponse.read()  # скачиваем файл
+                        content = await asyncio.wait_for(dlresponse.read(),  # скачиваем файл
+                                                         self.cfg.download_timeout_seconds)
                     self._log.debug('Processing file %s using executor %s',
                                     file.file_name, type(self._pool).__name__)
                     future = loop.run_in_executor(  # планируем извлечение дайджеста в дочернем процессе
@@ -104,6 +106,9 @@ class DigestManager:
                         file, content
                     )
                     del content
+                except asyncio.TimeoutError:
+                    self._log.warning('Failed to download file %s ( %s ): operation took longer than %.1f seconds',
+                                      file.file_name, file.file_url, self.cfg.download_timeout_seconds)
                 except WebServerError as err:
                     self._log.warning('Failed to download file %s ( %s ) due to webserver error: %s',
                                       file.file_name, file.file_url, err)
