@@ -1,6 +1,7 @@
 """
 Запускает Телеграм-бота с указанным токеном. Предоставляет доступ к боту другим модулям.
 """
+import asyncio
 from typing import cast, Optional, Dict, Any
 import logging
 import json
@@ -86,6 +87,18 @@ class PostgreStorage(BaseStorage):
         self.__engine = None
 
 
+async def telegram_poll(bot: aiogram.Bot, tgdispatcher: aiogram.Dispatcher, log: logging.Logger):
+    """Контролирует цикл aiogram, переподключаясь по мере необходимости."""
+    while True:
+        try:
+            # ДА ЯПОНСКИЙ ГОРОДОВОЙ! aiogram пожирает сигналы, не позволяя другим частям программы среагировать на них,
+            # если не указать handle_signals=False
+            await tgdispatcher.start_polling(bot, handle_signals=False)
+        except Exception as err:
+            log.error('Telegram error, reconnecting.', exc_info=err)
+            await asyncio.sleep(30)
+
+
 async def lifetime(api: CoreAPI):
     """Тело модуля."""
     log = logging.getLogger('modules.telegram')
@@ -109,9 +122,7 @@ async def lifetime(api: CoreAPI):
     api.register_api_provider(tgdispatcher, aiogram.Dispatcher)
     log.info('Starting telegram bot...')
     try:
-        # ДА ЯПОНСКИЙ ГОРОДОВОЙ! aiogram пожирает сигналы, не позволяя другим частям программы среагировать на них,
-        # если не указать handle_signals=False
-        async with background_task(tgdispatcher.start_polling(bot, handle_signals=False)):
+        async with background_task(telegram_poll(bot, tgdispatcher, log)):
             yield
     finally:
         log.info('Telegram bot stopped.')
