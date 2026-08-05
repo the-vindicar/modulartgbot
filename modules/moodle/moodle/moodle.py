@@ -103,7 +103,8 @@ class Moodle:
                     *, model: Type[ModelType] = None) -> Union[ModelType, JsonValue]:
         """Makes a GET request to the specified url and returns unpacked JSON data or a model instance.
         :param urlpath: A requested path, relative to the server base URL.
-        :param params: Request parameters. Can include lists/tuples/sets, dicts, datetime instances, StrEnum's.
+        :param params: Request parameters. Can include pydantic models, lists/tuples/sets, dicts,
+            datetime instances and Enums. See Moodle.transform_param()
         :param model: A Pydantic model used to validate server response. If None, then no validation is done.
         :returns: An instance of the specified Pydantic model, or just a decoded JSON."""
         if self.__session is None:
@@ -230,13 +231,13 @@ class Moodle:
             # simple linear collections use this syntax: param[0]=value0&param[1]=value1&...
             result = {}
             for i, val in enumerate(value):
-                result.update(self.transform_param(f'{name}[{i}]', val))  # значения преобразуем рекурсивно
+                result.update(self.transform_param(f'{name}[{i}]', val))  # transform values recursively
             return result
         elif isinstance(value, dict):
             # dictionaries use this syntax: param[key0]=value0&param[key1]=value1&...
             result = {}
             for key, val in value.items():
-                result.update(self.transform_param(f'{name}[{key}]', val))  # значения преобразуем рекурсивно
+                result.update(self.transform_param(f'{name}[{key}]', val))  # transform values recursively
             return result
         elif isinstance(value, BaseModel):
             # Pydantic models are interpreted as dicts

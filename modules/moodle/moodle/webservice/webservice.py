@@ -11,6 +11,7 @@ from .siteinfo import SiteInfoMixin
 from .courses import CoursesMixin
 from .enrol import EnrolMixin
 from .users import UsersMixin
+from .calendar import CalendarMixin
 from .assignments import AssignMixin
 from .grades import GradeReportMixin
 from .messages import MessagesMixin
@@ -34,6 +35,7 @@ class MoodleFunctions:
         self.mod_assign = AssignMixin(this)
         self.gradereport = GradeReportMixin(this)
         self.core_message = MessagesMixin(this)
+        self.core_calendar = CalendarMixin(this)
 
     @tp.overload
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],
