@@ -2,7 +2,7 @@
 import typing as t
 import enum
 
-from pydantic import BaseModel, Field, PositiveInt, AnyHttpUrl
+from pydantic import BaseModel, Field, AnyHttpUrl
 
 from .common import *
 
@@ -23,8 +23,8 @@ class SendMessage(BaseModel):
 
 class RConvMessage(BaseModel):
     """A message that already exists in a conversation."""
-    id: PositiveInt
-    useridfrom: PositiveInt
+    id: MoodleID
+    useridfrom: MoodleID
     text: str
     timecreated: Timestamp
 
@@ -38,7 +38,7 @@ class ConvType(enum.IntEnum):
 
 class RConvListing(BaseModel):
     """A short description of a conversation."""
-    id: PositiveInt
+    id: MoodleID
     type: ConvType
     name: str = ''
     timecreated: Timestamp
@@ -46,15 +46,15 @@ class RConvListing(BaseModel):
 
 class ContactRequest(BaseModel):
     """A contact request from a user."""
-    id: PositiveInt
-    userid: PositiveInt
-    requesteduserid: PositiveInt
+    id: MoodleID
+    userid: MoodleID
+    requesteduserid: MoodleID
     timecreated: Timestamp
 
 
 class RConvMember(BaseModel):
     """Conversation member."""
-    id: PositiveInt
+    id: MoodleID
     fullname: str
     profileurl: AnyHttpUrl
     profileimageurl: AnyHttpUrl
@@ -74,7 +74,7 @@ class RConvMember(BaseModel):
 
 class RConversation(BaseModel):
     """A conversation with another user."""
-    id: PositiveInt
+    id: MoodleID
     type: ConvType
     membercount: int
     ismuted: bool
@@ -95,7 +95,7 @@ class RConvList(BaseModel):
 
 class SendInstantMessage(BaseModel):
     """A description of an instant message we want to send."""
-    touserid: PositiveInt
+    touserid: MoodleID
     text: str
     textformat: FormatEnum = FormatEnum.FORMAT_MOODLE
     clientmsgid: t.Optional[str] = Field(default=None, pattern=r'^[0-9a-zA-Z]*$')
@@ -133,7 +133,7 @@ class MessageReadStatus(enum.IntEnum):
 
 
 class RMessage(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     useridfrom: int
     userfromfullname: str
     useridto: int
@@ -161,18 +161,18 @@ class RMessages(BaseModel):
 
 
 class RConvMessages(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     members: list[RConvMember] = Field(default_factory=list)
     messages: list[RConvMessage] = Field(default_factory=list)
 
 
 class RMarkAsReadMessage(BaseModel):
-    messageid: PositiveInt
+    messageid: MoodleID
     warnings: list[RWarning] = Field(default_factory=list)
 
 
 class RMarkAsReadNotification(BaseModel):
-    notificationid: PositiveInt
+    notificationid: MoodleID
     warnings: list[RWarning] = Field(default_factory=list)
 
 

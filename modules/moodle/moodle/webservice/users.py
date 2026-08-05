@@ -2,7 +2,7 @@
 from typing import Optional, Any, Collection, Union
 from enum import StrEnum
 
-from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
+from pydantic import BaseModel, AnyHttpUrl, Field
 
 from .common import *
 
@@ -26,7 +26,7 @@ class RPreference(BaseModel):
 
 
 class RBaseUser(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     fullname: Optional[str] = None
     username: Optional[str] = None
     firstname: Optional[str] = None

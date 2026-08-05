@@ -7,8 +7,11 @@ from pydantic import BaseModel, PositiveInt, AnyHttpUrl
 
 __all__ = [
     'ModelType', 'WebServiceAdapter', 'WebServiceFunctions',
-    'Timestamp', 'Option', 'FormatEnum', 'File', 'RWarning',
+    'Timestamp', 'MoodleID', 'OptionalMoodleID',
+    'Option', 'FormatEnum', 'File', 'RWarning',
 ]
+MoodleID = Annotated[int, Gt(0)]
+OptionalMoodleID = Annotated[int, Ge(0)]
 Timestamp = Annotated[int, Ge(0)]
 ModelType = TypeVar('ModelType')
 

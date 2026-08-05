@@ -1,6 +1,6 @@
 """This submodule deals with retrieving site/our account information."""
 from typing import Optional, Any
-from pydantic import BaseModel, PositiveInt, AnyHttpUrl, Field
+from pydantic import BaseModel, AnyHttpUrl, Field
 from .common import *
 
 
@@ -24,7 +24,7 @@ class RSiteInfo(BaseModel):
     lastname: str
     fullname: str
     lang: str
-    userid: PositiveInt
+    userid: MoodleID
     siteurl: AnyHttpUrl
     userpictureurl: str
     functions: list[RAvailableFunction] = Field(default_factory=list)

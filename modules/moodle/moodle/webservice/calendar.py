@@ -2,7 +2,7 @@
 from typing import Optional, Any, Collection, Union
 from datetime import datetime
 
-from pydantic import BaseModel, PositiveInt, Field
+from pydantic import BaseModel
 
 from .common import *
 
@@ -32,19 +32,19 @@ class CalendarEvent(BaseModel):
 
 class DeleteEvent(BaseModel):
     """Describes a set of calendar events that should be deleted."""
-    eventid: PositiveInt
+    eventid: MoodleID
     repeat: bool
 
 
 class RCalendarEvent(BaseModel):
     """Describes a calendar event returned by the server."""
-    id: PositiveInt
+    id: MoodleID
     name: str
-    courseid: PositiveInt
-    groupid: PositiveInt
-    userid: PositiveInt
-    repeatid: PositiveInt
-    instance: PositiveInt
+    courseid: MoodleID
+    groupid: MoodleID
+    userid: MoodleID
+    repeatid: MoodleID
+    instance: MoodleID
     eventtype: str
     timestart: Timestamp
     timeduration: int
@@ -80,10 +80,10 @@ class CalendarMixin(WebServiceFunctions):
             current_user_events: bool = True,
             site_events: bool = True,
             ignore_hidden: bool = True,
-            eventids: Collection[int] = (),
-            courseids: Collection[int] = (),
-            groupids: Collection[int] = (),
-            categoryids: Collection[int] = (),
+            eventids: Collection[MoodleID] = (),
+            courseids: Collection[MoodleID] = (),
+            groupids: Collection[MoodleID] = (),
+            categoryids: Collection[MoodleID] = (),
     ) -> RCalendarEvents:
         """Retrieves the list of calendar events matching the given parameters."""
         return await self._owner('core_calendar_get_calendar_events', dict(
@@ -108,7 +108,7 @@ class CalendarMixin(WebServiceFunctions):
         """Deletes one or more events from the calendar."""
         return await self._owner('core_calendar_delete_calendar_events', dict(events=events), model=None)
 
-    async def update_event_start_day(self, eventid: PositiveInt, daytimestamp: Timestamp) -> RUpdateEventDay:
+    async def update_event_start_day(self, eventid: MoodleID, daytimestamp: Timestamp) -> RUpdateEventDay:
         """Changes the day for the given event, without changing anything else.
         Only day portion is extracted from daytimestamp, and time portion is ignored."""
         return await self._owner('core_calendar_update_event_start_day', dict(

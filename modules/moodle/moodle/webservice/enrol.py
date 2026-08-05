@@ -1,7 +1,7 @@
 """This submodule deals with retrieving course participants."""
 from typing import Optional, Any, Collection
 
-from pydantic import BaseModel, PositiveInt, Field
+from pydantic import BaseModel, Field
 
 from .common import *
 from .users import RCustomField, RPreference, RBaseUser
@@ -14,21 +14,21 @@ __all__ = [
 
 
 class RGroup(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     name: str
     description: Optional[str]
     descriptionformat: Any
 
 
 class RRole(BaseModel):
-    roleid: PositiveInt
+    roleid: MoodleID
     name: str
     shortname: str
     sortorder: int
 
 
 class RCourseMention(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     fullname: str
     shortname: str
 
@@ -44,7 +44,7 @@ class EnrolMixin(WebServiceFunctions):
     """Mixin providing methods for working with course participants."""
     async def get_enrolled_users(
             self,
-            courseid: int,
+            courseid: MoodleID,
             options: Collection[Option]
     ) -> list[REnrolledUser]:
         """Retrieves all users, enrolled into the given course.

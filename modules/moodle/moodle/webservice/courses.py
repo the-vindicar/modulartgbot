@@ -1,7 +1,7 @@
 """This submodule deals with retrieving course information."""
 from typing import Optional, Any, Collection, Union
 from enum import StrEnum
-from pydantic import BaseModel, PositiveInt
+from pydantic import BaseModel
 from .common import *
 
 
@@ -24,7 +24,7 @@ class CourseTimelineClassification(StrEnum):
 
 
 class RCourse(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     fullname: str
     shortname: str
     idnumber: Any

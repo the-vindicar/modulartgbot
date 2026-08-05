@@ -1,6 +1,6 @@
 """This submodule deals with retrieving grades."""
 from typing import Optional, Any
-from pydantic import BaseModel, Field, ConfigDict, PositiveInt
+from pydantic import BaseModel, Field, ConfigDict
 from .common import *
 
 
@@ -51,8 +51,8 @@ class RUserGrade(BaseModel):
 
 
 class RUserGradeTable(BaseModel):
-    courseid: PositiveInt
-    userid: PositiveInt
+    courseid: MoodleID
+    userid: MoodleID
     userfullname: str
     maxdepth: int
     tabledata: list[RUserGrade]
@@ -64,14 +64,14 @@ class RGradesTables(BaseModel):
 
 
 class RGradeItemsItem(BaseModel):
-    id: PositiveInt
+    id: MoodleID
     itemname: Optional[str]
     itemtype: str
     itemmodule: Optional[str]
-    iteminstance: PositiveInt
+    iteminstance: MoodleID
     itemnumber: Optional[int]
     idnumber: Any
-    categoryid: Optional[PositiveInt]
+    categoryid: Optional[OptionalMoodleID]
     outcomeid: Optional[int] = None
     scaleid: Optional[int] = None
     locked: Optional[bool] = None
@@ -101,9 +101,9 @@ class RGradeItemsItem(BaseModel):
 
 
 class RGradeItemsUserGrade(BaseModel):
-    courseid: PositiveInt
+    courseid: MoodleID
     courseidnumber: Any
-    userid: PositiveInt
+    userid: MoodleID
     userfullname: str
     useridnumber: Any
     maxdepth: int

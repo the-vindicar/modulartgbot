@@ -32,9 +32,9 @@ class GradingStatus(StrEnum):
 
 
 class RAssignment(BaseModel):
-    id: PositiveInt
-    cmid: PositiveInt
-    course: PositiveInt
+    id: MoodleID
+    cmid: MoodleID
+    course: MoodleID
     name: str
     nosubmissions: bool
     submissiondrafts: bool
@@ -49,7 +49,7 @@ class RAssignment(BaseModel):
     gradingduedate: Timestamp
     teamsubmission: bool
     requireallteammemberssubmit: bool
-    teamsubmissiongroupingid: int
+    teamsubmissiongroupingid: OptionalMoodleID
     blindmarking: bool
     hidegrader: bool
     revealidentities: bool
@@ -76,7 +76,7 @@ class RAssignment(BaseModel):
 
 
 class RAssignmentsPerCourse(BaseModel):
-    id: int
+    id: MoodleID
     fullname: str
     shortname: str
     timemodified: Timestamp
@@ -108,22 +108,22 @@ class RSubmissionPlugin(BaseModel):
 
 
 class RSubmission(BaseModel):
-    id: PositiveInt
-    userid: PositiveInt
+    id: MoodleID
+    userid: MoodleID
     attemptnumber: int
     timecreated: Timestamp
     timemodified: Timestamp
     timestarted: Optional[Timestamp]
     status: SubmissionStatus
-    groupid: int
-    assignment: Optional[PositiveInt] = None
+    groupid: OptionalMoodleID
+    assignment: Optional[OptionalMoodleID] = None
     latest: Optional[int] = None
     plugins: list[RSubmissionPlugin] = Field(default_factory=list)
     gradingstatus: Optional[GradingStatus] = None
 
 
 class RAssignmentMention(BaseModel):
-    assignmentid: PositiveInt
+    assignmentid: MoodleID
     submissions: list[RSubmission]
 
 
@@ -133,18 +133,18 @@ class RSubmissions(BaseModel):
 
 
 class RAssignmentGrade(BaseModel):
-    id: PositiveInt
-    userid: PositiveInt
+    id: MoodleID
+    userid: MoodleID
     attemptnumber: int
     timecreated: Timestamp
     timemodified: Timestamp
-    grader: PositiveInt
+    grader: MoodleID
     grade: str
     gradefordisplay: Optional[str] = None
 
 
 class RAssignmentGradeset(BaseModel):
-    assignmentid: PositiveInt
+    assignmentid: MoodleID
     grades: list[RAssignmentGrade]
 
 
@@ -179,9 +179,9 @@ class RSubmissionStatusLastAttempt(BaseModel):
     extensionduedate: Timestamp
     blindmarking: bool
     gradingstatus: GradingStatus
-    usergroups: list[PositiveInt]
+    usergroups: list[MoodleID]
     timelimit: Optional[Timestamp] = None
-    submissiongroup: Optional[int] = None
+    submissiongroup: Optional[OptionalMoodleID] = None
     submission: Optional[RSubmission] = None
     teamsubmission: Optional[RSubmission] = None
     submissiongroupmemberswhoneedtosubmit: list[PositiveInt] = Field(default_factory=list)
@@ -218,7 +218,7 @@ class AssignMixin (WebServiceFunctions):
     """Mixin providing methods for working with users."""
     async def get_assignments(
             self,
-            courseids: Collection[int] = (),
+            courseids: Collection[MoodleID] = (),
             capabilities: Collection[str] = (),
             includenotenrolledcourses: bool = False
     ) -> RAssignments:
@@ -236,7 +236,7 @@ class AssignMixin (WebServiceFunctions):
 
     async def get_submissions(
             self,
-            assignmentids: Collection[int],
+            assignmentids: Collection[MoodleID],
             status: str = '',
             since: Union[datetime, int] = 0, before: Union[datetime, int] = 0
     ) -> RSubmissions:
@@ -254,7 +254,7 @@ class AssignMixin (WebServiceFunctions):
 
     async def get_grades(
             self: WebServiceAdapter,
-            assignmentids: Collection[int],
+            assignmentids: Collection[MoodleID],
             since: Union[datetime, int] = 0
     ) -> RAssignmentsGrades:
         """Retrieves user grades for the given assignments.
@@ -269,8 +269,8 @@ class AssignMixin (WebServiceFunctions):
 
     async def get_submission_status(
             self,
-            assignid: int,
-            userid: int = 0,
+            assignid: MoodleID,
+            userid: OptionalMoodleID = 0,
             groupid: Union[int, Literal['']] = 0
     ) -> RSubmissionStatus:
         """Retrieves a single submission's status for the given assignment.
