@@ -3,12 +3,12 @@ annotated-types
 pydantic==2.*
 python-dotenv
 asyncpg
-sqlalchemy[asyncio]~=2.0.41
-aiohttp~=3.12.14
+sqlalchemy[asyncio]
+aiohttp
 aiohttp-socks
-quart~=0.20.0
+quart
 quart-auth
-aiogram~=3.21.0
+aiogram
 homoglyphs
-openpyxl~=3.1.5
+openpyxl
 pdfplumber
