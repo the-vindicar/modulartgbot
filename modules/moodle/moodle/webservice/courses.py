@@ -1,7 +1,7 @@
 """This submodule deals with retrieving course information."""
 from typing import Optional, Any, Collection, Union
-from enum import StrEnum
-from pydantic import BaseModel
+from enum import StrEnum, IntEnum
+from pydantic import BaseModel, AnyHttpUrl, Field
 from .common import *
 
 
@@ -9,6 +9,20 @@ __all__ = [
     'CoursesMixin',
     'CourseTimelineClassification', 'RCourse', 'RPaginatedCourses',
 ]
+
+
+class CompletionType(IntEnum):
+    """Type of completion tracking for a module."""
+    NONE = 0
+    MANUAL = 1
+    AUTO = 2
+
+
+class GroupMode(IntEnum):
+    """Group mode for a module."""
+    NONE = 0
+    SEPARATE = 1
+    VISIBLE = 2
 
 
 class CourseTimelineClassification(StrEnum):
@@ -43,8 +57,138 @@ class RPaginatedCourses(BaseModel):
     nextoffset: int
 
 
+class RCourseModuleDate(BaseModel):
+    """A component of module description."""
+    label: str
+    timestamp: Timestamp
+    relativeto: Optional[Timestamp] = None
+    dataid: Optional[str] = None
+
+
+class RCourseModuleContents(BaseModel):
+    """Files attached to a course module."""
+    type: str
+    filename: str
+    filepath: Optional[str]
+    filesize: int
+    fileurl: AnyHttpUrl
+    isexternalfile: Optional[bool] = None
+    repositorytype: Optional[Any] = None
+    content: Any = None
+    timemodified: Optional[Timestamp] = None
+    timecreated: Optional[Timestamp] = None
+    sortorder: Optional[int] = None
+    userid: Optional[MoodleID] = None
+    author: Optional[str] = None
+    license: Optional[str] = None
+    tags: list = Field(default_factory=list)
+
+
+class RContentsInfo(BaseModel):
+    """Contents summary for a course module."""
+    filescount: int
+    filessize: int
+    lastmodified: Timestamp
+    mimetypes: list[str]
+    repositorytype: str
+
+
+class RCourseModule(BaseModel):
+    """A module contained within the course."""
+    id: MoodleID
+    name: str
+    modicon: AnyHttpUrl
+    modname: str
+    modplural: str
+    purpose: str
+    indent: int
+    url: Optional[AnyHttpUrl] = None
+    branded: Optional[bool] = None
+    description: Optional[str] = None
+    visible: Optional[bool] = None
+    uservisible: Optional[bool] = None
+    availabilityinfo: Optional[str] = None
+    availability: Optional[str] = None
+    visibleoncoursepage: Optional[bool] = None
+    instance: Optional[OptionalMoodleID] = None
+    contextid: Optional[OptionalMoodleID] = None
+    onclick: Optional[str] = None
+    afterlink: Optional[str] = None
+    activitybadge: Optional[Any] = None
+    customdata: Optional[str] = None
+    noviewlink: Optional[bool] = None
+    candisplay: Optional[bool] = None
+    completion: Optional[CompletionType] = None
+    completiondata: Optional[Any] = None
+    downloadcontent: Optional[int] = None
+    dates: list[RCourseModuleDate] = Field(default_factory=list)
+    groupmode: Optional[GroupMode] = None
+    contents: list[RCourseModuleContents] = Field(default_factory=list)
+    contentsinfo: Optional[RContentsInfo] = None
+
+
+class RCourseSection(BaseModel):
+    """A section within the course."""
+    id: MoodleID
+    name: str
+    summary: str
+    modules: list[RCourseModule]
+    visible: Optional[bool] = None
+    uservisible: Optional[bool] = None
+    availabilityinfo: Optional[str] = None
+    section: Optional[int] = None
+    summaryformat: FormatEnum = FormatEnum.FORMAT_HTML
+    component: Optional[Any] = None
+    itemid: Optional[OptionalMoodleID] = None
+
+
 class CoursesMixin(WebServiceFunctions):
     """Mixin providing methods for working with courses."""
+    async def get_course_contents(
+            self,
+            courseid: MoodleID,
+            *,
+            excludemodules: bool = None,
+            excludecontents: bool = None,
+            includestealthmodules: bool = None,
+            sectionid: MoodleID = None,
+            sectionnumber: int = None,
+            cmid: MoodleID = None,
+            modname: str = None,
+            modid: MoodleID = None,
+            options: Collection[Option] = ()
+    ) -> list[RCourseSection]:
+        """Retrieves course contents.
+        The expected keys (value format) are:
+            ``excludemodules`` (bool) Do not return modules, return only the sections structure
+            ``excludecontents`` (bool) Do not return module contents (i.e: files inside a resource)
+            ``includestealthmodules`` (bool) Return stealth modules for students in a special section (with id -1)
+            ``sectionid`` (int) Return only this section
+            ``sectionnumber`` (int) Return only this section with number (order)
+            ``cmid`` (int) Return only this module information (among the whole sections structure)
+            ``modname`` (string) Return only modules with this name "label, forum, etc..."
+            ``modid`` (int) Return only the module with this id"""
+        opts = list(options)
+        if excludemodules is not None:
+            opts.append({'name': 'excludemodules', 'value': excludemodules})
+        if excludecontents is not None:
+            opts.append({'name': 'excludecontents', 'value': excludecontents})
+        if includestealthmodules is not None:
+            opts.append({'name': 'includestealthmodules', 'value': includestealthmodules})
+        if sectionid is not None:
+            opts.append({'name': 'sectionid', 'value': sectionid})
+        if sectionnumber is not None:
+            opts.append({'name': 'sectionnumber', 'value': sectionnumber})
+        if cmid is not None:
+            opts.append({'name': 'cmid', 'value': cmid})
+        if modname is not None:
+            opts.append({'name': 'modname', 'value': modname})
+        if modid is not None:
+            opts.append({'name': 'modid', 'value': modid})
+        return await self._owner('core_course_get_contents', dict(
+            courseid=courseid, options=opts
+        ), model=list[RCourseSection])
+
     async def get_enrolled_courses_by_timeline_classification(
             self,
             classification: Union[str, CourseTimelineClassification],

@@ -8,7 +8,7 @@ from pydantic import BaseModel, PositiveInt, AnyHttpUrl
 __all__ = [
     'ModelType', 'WebServiceAdapter', 'WebServiceFunctions',
     'Timestamp', 'MoodleID', 'OptionalMoodleID',
-    'Option', 'FormatEnum', 'File', 'RWarning',
+    'CustomField', 'Option', 'FormatEnum', 'File', 'RWarning',
 ]
 MoodleID: TypeAlias = Annotated[int, Gt(0)]
 OptionalMoodleID: TypeAlias = Annotated[int, Ge(0)]
@@ -42,6 +42,12 @@ class FormatEnum(Enum):
 class Option(TypedDict):
     """Some API calls allow for a set of options in form of a list of name-value pairs."""
     name: str
+    value: Any
+
+
+class CustomField(TypedDict):
+    """Some API calls allow for custom key-value collections."""
+    shortname: str
     value: Any
 
 
