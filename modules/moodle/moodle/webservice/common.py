@@ -1,5 +1,5 @@
 """General types and utilities to facilitate Web API function calls."""
-from typing import Optional, Any, Annotated, TypeVar, TypedDict, Protocol, Type
+from typing import Optional, Any, Annotated, TypeVar, TypedDict, Protocol, Type, TypeAlias
 from enum import Enum
 from annotated_types import *
 from pydantic import BaseModel, PositiveInt, AnyHttpUrl
@@ -10,9 +10,9 @@ __all__ = [
     'Timestamp', 'MoodleID', 'OptionalMoodleID',
     'Option', 'FormatEnum', 'File', 'RWarning',
 ]
-MoodleID = Annotated[int, Gt(0)]
-OptionalMoodleID = Annotated[int, Ge(0)]
-Timestamp = Annotated[int, Ge(0)]
+MoodleID: TypeAlias = Annotated[int, Gt(0)]
+OptionalMoodleID: TypeAlias = Annotated[int, Ge(0)]
+Timestamp: TypeAlias = Annotated[int, Ge(0)]
 ModelType = TypeVar('ModelType')
 
 
