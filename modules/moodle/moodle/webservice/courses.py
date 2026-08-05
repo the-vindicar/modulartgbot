@@ -142,6 +142,63 @@ class RCourseSection(BaseModel):
     itemid: Optional[OptionalMoodleID] = None
 
 
+class RAdvancedGrading(BaseModel):
+    """Describes advanced grading."""
+    area: str
+    method: Optional[str]
+
+
+class RGradingOutcome(BaseModel):
+    """Describes a grading outcome."""
+    id: str
+    name: str
+    scale: str
+
+
+class RCourseModulePart(BaseModel):
+    """Describes a course module."""
+    id: MoodleID
+    course: MoodleID
+    module: int
+    name: str
+    modname: str
+    instance: MoodleID
+    section: MoodleID
+    sectionnum: int
+    groupmode: GroupMode
+    groupingid: OptionalMoodleID
+    completion: CompletionType
+    idnumber: Optional[str] = None
+    added: Optional[Timestamp] = None
+    score: Optional[int] = None
+    indent: Optional[int] = None
+    visible: Optional[bool] = None
+    visibleoncoursepage: Optional[bool] = None
+    visibleold: Optional[bool] = None
+
+    completiongradeitemnumber: Optional[int] = None
+    completionpassgrade: Optional[int] = None
+    completionview: Optional[int] = None
+    completionexpected: Optional[Timestamp] = None
+
+    showdescription: Optional[bool] = None
+    downloadcontent: Optional[bool] = None
+    availability: Optional[str] = None
+
+    grade: Optional[float | int | str] = None
+    gradepass: Optional[float] = None
+    gradecat: Optional[MoodleID] = None
+    scale: Optional[str] = None
+    advancedgrading: list[RAdvancedGrading] = Field(default_factory=list)
+    outcomes: list[RGradingOutcome] = Field(default_factory=list)
+
+
+class RCourseModuleResponse(BaseModel):
+    """A response to querying a course module."""
+    cm: Optional[RCourseModulePart] = None
+    warnings: list[RWarning] = Field(default_factory=list)
+
+
 class CoursesMixin(WebServiceFunctions):
     """Mixin providing methods for working with courses."""
     async def get_course_contents(
@@ -218,3 +275,17 @@ class CoursesMixin(WebServiceFunctions):
                 customfieldname=customfieldname, customfieldvalue=customfieldvalue, searchvalue=searchvalue,
                 requiredfields=requiredfields
             ), model=RPaginatedCourses)
+
+    async def get_course_module_by_instance(
+            self,
+            module: str,
+            instance: MoodleID
+    ) -> RCourseModuleResponse:
+        """Retrieves a course module by its plugin name and instance ID (the latter makes sense only for the plugin)."""
+        return await self._owner('core_course_get_course_module_by_instance', dict(
+            module=module, instance=instance
+        ), model=RCourseModuleResponse)
+
+    async def get_course_module(self, cmid: MoodleID) -> RCourseModuleResponse:
+        """Retrieves course module by its cmid. CMID only makes sense for the course itself, and not for plugins."""
+        return await self._owner('core_course_get_course_module', dict(cmid=cmid), model=RCourseModuleResponse)
