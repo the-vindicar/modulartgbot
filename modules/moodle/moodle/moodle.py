@@ -245,6 +245,9 @@ class Moodle:
         elif isinstance(value, datetime.datetime):
             # datetime is transformed into an integer timestamp, according to server timezone
             return {name: self.datetime2timestamp(value)}
+        elif isinstance(value, datetime.timedelta):
+            # timedelta is transformed into an integer number of seconds
+            return {name: int(value.total_seconds())}
         elif isinstance(value, enum.Enum):
             # Enums are replaces with their values
             return {name: value.value}
