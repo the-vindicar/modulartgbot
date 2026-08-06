@@ -179,6 +179,8 @@ class Moodle:
         else:
             self.token = response['token']
             await self._update_user_info()
+            # noinspection PyProtectedMember
+            await self.function._update_available_functions()
 
     async def _update_user_info(self) -> None:
         """Attempts to acquire user info for the account we are using."""

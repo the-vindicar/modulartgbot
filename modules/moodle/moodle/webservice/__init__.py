@@ -3,6 +3,7 @@ from .common import *
 from .siteinfo import *
 from .courses import *
 from .users import *
+from .attendance import *
 from .calendar import *
 from .assignments import *
 from .grades import *

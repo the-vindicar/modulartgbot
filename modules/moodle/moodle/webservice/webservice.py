@@ -1,5 +1,7 @@
 """Contains classes that simplify working with Moodle Web API."""
 import typing as tp
+import warnings
+import pathlib
 
 from pydantic import JsonValue
 
@@ -12,12 +14,18 @@ from .courses import CoursesMixin
 from .enrol import EnrolMixin
 from .users import UsersMixin
 from .calendar import CalendarMixin
+from .attendance import AttendanceMixin
 from .assignments import AssignMixin
 from .grades import GradeReportMixin
 from .messages import MessagesMixin
 
 
-__all__ = ['MoodleFunctions']
+__all__ = ['MoodleFunctions', 'FunctionWarning']
+_skip_prefixes = (str(pathlib.Path(__file__).parent), )
+
+
+class FunctionWarning(UserWarning):
+    """Warning about webservice function usage."""
 
 
 class MoodleFunctions:
@@ -27,15 +35,17 @@ class MoodleFunctions:
 
     def __init__(self, owner: 'Moodle'):
         self.__owner = owner
+        self.__functions: tp.Optional[dict[str, str]] = None
         this = tp.cast(WebServiceAdapter, self)
         self.core_webservice = SiteInfoMixin(this)
         self.core_users = UsersMixin(this)
+        self.core_message = MessagesMixin(this)
+        self.core_calendar = CalendarMixin(this)
         self.core_course = CoursesMixin(this)
         self.core_enrol = EnrolMixin(this)
         self.mod_assign = AssignMixin(this)
+        self.mod_attendance = AttendanceMixin(this)
         self.gradereport = GradeReportMixin(this)
-        self.core_message = MessagesMixin(this)
-        self.core_calendar = CalendarMixin(this)
 
     @tp.overload
     async def __call__(self, func: str, params: tp.Dict[str, tp.Any],
@@ -58,6 +68,15 @@ class MoodleFunctions:
         :param model: A Pydantic model used to validate the response. Can be omitted to receive simple decoded JSON.
         :returns: Instance of the provided model. If no model is provided, a dict/list containing server's
             JSON response."""
+        if self.__functions is None:
+            await self._update_available_functions()
+        if self.__functions is not None and func not in self.__functions:
+            warnings.warn(  # noqa
+                f'Webservice function "{func}" is not listed among available to "{self.__owner.me.username}"',
+                FunctionWarning,
+                stacklevel=2,
+                skip_file_prefixes=_skip_prefixes
+            )
         params.update({
             'wsfunction': func,
             'wstoken': self.__owner.token,
@@ -65,3 +84,12 @@ class MoodleFunctions:
         })
         result = await self.__owner.query('webservice/rest/server.php', params=params, model=model)
         return result
+
+    async def _update_available_functions(self) -> None:
+        params = {
+            'wsfunction': 'core_webservice_get_site_info',
+            'wstoken': self.__owner.token,
+            'moodlewsrestformat': 'json'
+        }
+        results = await self.__owner.query('webservice/rest/server.php', params=params, model=None)
+        self.__functions = {fninfo['name']: fninfo['version'] for fninfo in results.get('functions', [])}
