@@ -1,7 +1,7 @@
 """This submodule deals with retrieving assignments and submissions to them."""
 from typing import Optional, Collection, Literal, Union
 from enum import StrEnum
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel, PositiveInt, Field
 from .common import *
 
@@ -14,6 +14,7 @@ __all__ = [
     'RSubmissionPlugin', 'RSubmissionEditorField', 'RSubmissionFileArea',
     'UngroupedWarning', 'RSubmissionStatus', 'RSubmissionStatusGradingSummary', 'RSubmissionStatusFeedback',
     'RSubmissionStatusLastAttempt', 'RSubmissionStatusAssignData', 'RSubmissionStatusAssignDataAttachments',
+    'ROverrides', 'ROverride', 'ROverrideIDs', 'Override'
 ]
 
 
@@ -214,6 +215,44 @@ class RSubmissionStatus(BaseModel):
     warnings: list[RWarning] = Field(default_factory=list)
 
 
+class Override(BaseModel):
+    """Describes a newly created or updated time override for an assignment."""
+    id: Optional[MoodleID]
+    groupid: Optional[MoodleID] = None
+    userid: Optional[MoodleID] = None
+    allowsubmissionsfromdate: Union[datetime, int, None] = None
+    duedate: Union[datetime, int, None] = None
+    cutoffdate: Union[datetime, int, None] = None
+    timelimit: Union[timedelta, int, None] = None
+    reason: Optional[str] = None
+    reasonformat: Optional[FormatEnum] = FormatEnum.FORMAT_MOODLE
+
+
+class ROverride(BaseModel):
+    """A time override (start/due/cutoff) for an assignment."""
+    id: MoodleID
+    assignid: MoodleID
+    userid: Optional[OptionalMoodleID] = None
+    groupid: Optional[OptionalMoodleID] = None
+    sortorder: Optional[int] = None
+    allowsubmissionsfromdate: Optional[Timestamp] = None
+    duedate: Optional[Timestamp] = None
+    cutoffdate: Optional[Timestamp] = None
+    timelimit: Optional[timedelta] = None
+    reason: Optional[str] = None
+    reasonformat: FormatEnum = FormatEnum.FORMAT_MOODLE
+
+
+class ROverrideIDs(BaseModel):
+    """List of IDs for created/updated/deleted overrides."""
+    ids: list[int]
+
+
+class ROverrides(BaseModel):
+    """List of start/due/cutoff time overrides for an assignment."""
+    overrides: list[ROverride]
+
+
 class AssignMixin (WebServiceFunctions):
     """Mixin providing methods for working with users."""
     async def get_assignments(
@@ -282,4 +321,65 @@ class AssignMixin (WebServiceFunctions):
             'mod_assign_get_submission_status', dict(
                 assignid=assignid, userid=userid, groupid=groupid
             ), model=RSubmissionStatus
+        )
+
+    async def get_overrides(
+            self,
+            assignid: MoodleID
+    ) -> ROverrides:
+        """Retrieves time overrides for the given assignment.
+        :param assignid: ID of the assignment to retrieve the overrides for."""
+        return await self._owner(
+            'mod_assign_get_overrides', dict(
+                assignid=assignid,
+            ), model=ROverrides
+        )
+
+    async def save_overrides(
+            self,
+            assignid: MoodleID,
+            overrides: Collection[Override],
+            recalculatepenalties: bool = False
+    ) -> ROverrideIDs:
+        """
+        Updates or adds assignment time overrides.
+        :param assignid: Assignment ID for which overrides are updated.
+        :param overrides: Collection of override descriptions. If id field is None, a new override will be added,
+            otherwise an existing override will be updated.
+        :param recalculatepenalties: If True, penalties for late students will be recalculated according to
+            the new overrides.
+        :return:
+        """
+        return await self._owner(
+            'mod_assign_save_overrides', dict(
+                data=dict(
+                    assignid=assignid,
+                    overrides=list(overrides),
+                    recalculatepenalties=recalculatepenalties
+                ),
+            ), model=ROverrideIDs
+        )
+
+    async def delete_overrides(
+            self,
+            assignid: MoodleID,
+            ids: Collection[MoodleID],
+            recalculatepenalties: bool = False
+    ) -> ROverrideIDs:
+        """
+        Deletes assignment time overrides with the given IDs.
+        :param assignid: Assignment ID for which overrides are updated.
+        :param ids: Collection of override IDs.
+        :param recalculatepenalties: If True, penalties for late students will be recalculated according to
+            the remaining overrides.
+        :return:
+        """
+        return await self._owner(
+            'mod_assign_save_overrides', dict(
+                data=dict(
+                    assignid=assignid,
+                    ids=list(ids),
+                    recalculatepenalties=recalculatepenalties
+                ),
+            ), model=ROverrideIDs
         )
