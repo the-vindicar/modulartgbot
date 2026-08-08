@@ -2,6 +2,7 @@
 from .common import *
 from .siteinfo import *
 from .courses import *
+from .cm_availability import *
 from .users import *
 from .attendance import *
 from .calendar import *

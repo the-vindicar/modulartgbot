@@ -1,8 +1,9 @@
 """This submodule deals with retrieving course information."""
 from typing import Optional, Any, Collection, Union
 from enum import StrEnum, IntEnum
-from pydantic import BaseModel, AnyHttpUrl, Field
+from pydantic import BaseModel, AnyHttpUrl, Field, TypeAdapter
 from .common import *
+from .cm_availability import AvOperator
 
 
 __all__ = [
@@ -125,6 +126,14 @@ class RCourseModule(BaseModel):
     groupmode: Optional[GroupMode] = None
     contents: list[RCourseModuleContents] = Field(default_factory=list)
     contentsinfo: Optional[RContentsInfo] = None
+
+    @property
+    def availability_conditions(self) -> Optional[AvOperator]:
+        """Presents availability string as condition object tree."""
+        if self.availability is None:
+            return None
+        adapter = TypeAdapter(AvOperator)
+        return adapter.validate_json(self.availability)
 
 
 class RCourseSection(BaseModel):

@@ -11,9 +11,9 @@ async def main():
     m = Moodle('https://sdo.kosgos.ru', input('Username: '), input('Password: '))
     async with m:
         await m.login()
-        # await test_site_info(m)
+        await test_site_info(m)
         # await test_course_contents(m, 683)
-        await test_attendance(m, 683)
+        # await test_attendance(m, 683)
 
 
 async def test_attendance(m: Moodle, courseid: int):
@@ -36,9 +36,9 @@ async def test_course_contents(m: Moodle, courseid: int):
     for s in sections:
         print(f'#{s.section} {s.name}: {s.summary}')
         for mod in s.modules:
-            print(f'    {mod.modname} #{mod.id}: {mod.name} ({mod.contextid}, {mod.instance})', end=' ')
-            repeat = await m.function.core_course.get_course_module_by_instance(mod.modname, mod.instance)
-            print('OK' if repeat.cm.id == mod.id else 'MISMATCH')
+            print(f'    {mod.modname} #{mod.id}: {mod.name} ({mod.contextid}, {mod.instance})')
+            if mod.availability:
+                print(f'        {mod.availability_conditions}')
 
 
 async def test_site_info(m: Moodle):
