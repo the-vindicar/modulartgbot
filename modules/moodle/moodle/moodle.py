@@ -2,6 +2,7 @@
 from typing import Any, Union, Optional, overload, Type
 import datetime
 import enum
+import io
 import logging
 
 import aiohttp
@@ -11,6 +12,7 @@ from .errors import MoodleError, InvalidToken, WebServerError
 from .webservice import MoodleFunctions, ModelType, RUserDescription
 
 __all__ = ['Moodle']
+_RequestBody = Union[None, bytes, dict, list, tuple, io.IOBase]
 
 
 class Moodle:
@@ -89,23 +91,31 @@ class Moodle:
     @overload
     async def query(self,
                     urlpath: str, params: dict[str, Any] = None,
-                    *, model: Type[ModelType]) -> ModelType:
+                    *, model: Type[ModelType],
+                    method: str = 'GET', data: _RequestBody = None
+                    ) -> ModelType:
         """Queries the server, while providing a model to validate the result against."""
 
     @overload
     async def query(self,
                     urlpath: str, params: dict[str, Any] = None,
-                    *, model: None = None) -> JsonValue:
+                    *, model: None = None,
+                    method: str = 'GET', data: _RequestBody = None
+                    ) -> JsonValue:
         """Queries the server without providing a model."""
 
     async def query(self,
                     urlpath: str, params: dict[str, Any] = None,
-                    *, model: Type[ModelType] = None) -> Union[ModelType, JsonValue]:
+                    *, model: Type[ModelType] = None,
+                    method: str = 'GET', data: _RequestBody = None
+                    ) -> Union[ModelType, JsonValue]:
         """Makes a GET request to the specified url and returns unpacked JSON data or a model instance.
         :param urlpath: A requested path, relative to the server base URL.
         :param params: Request parameters. Can include pydantic models, lists/tuples/sets, dicts,
             datetime instances and Enums. See Moodle.transform_param()
         :param model: A Pydantic model used to validate server response. If None, then no validation is done.
+        :param method: Which HTTP method to use. By default it's GET.
+        :param data: Request body, if needed. None if there is no body to be sent.
         :returns: An instance of the specified Pydantic model, or just a decoded JSON."""
         urlpath = self.__base_url + urlpath
         paramvalues = {}
@@ -113,7 +123,7 @@ class Moodle:
             paramvalues.update(self.transform_param(name, value))
         self._log.debug('Querying %s with params %s', urlpath, paramvalues)
         for attempt in range(2):  # up to 2 query attempts
-            async with self.__session.get(urlpath, params=paramvalues) as r:
+            async with self.__session.request(method, urlpath, params=paramvalues, data=data) as r:
                 if r.status >= 400:
                     raise MoodleError(url=str(r.url), message=f'Server responded with error code {r.status}')
                 try:
