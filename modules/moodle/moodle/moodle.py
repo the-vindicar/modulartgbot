@@ -40,7 +40,7 @@ class Moodle:
         self.__service: str = service
         self.token: str = ''
         self.timezone: datetime.timezone = datetime.timezone.utc
-        self.__session = None
+        self.__session = aiohttp.ClientSession()
         self.__function = MoodleFunctions(self)
         self.__user: Optional[RUserDescription] = None
 
@@ -64,6 +64,11 @@ class Moodle:
         """Information about our account, as retrieved from the server."""
         return self.__user
 
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        """Session, used to make requests to the server. Can be configured as necessary."""
+        return self.__session
+
     async def close(self):
         """Terminates worksession and closes connection to the server.
         Does NOT log the user out, since we might want to reuse the access token in the next session,
@@ -73,18 +78,13 @@ class Moodle:
         """
         if self.__session is not None:
             await self.__session.close()
-            self.__session = None
 
     async def __aenter__(self) -> 'Moodle':
-        if self.__session is None:
-            self.__session = aiohttp.ClientSession()
-            await self.__session.__aenter__()
+        await self.__session.__aenter__()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.__session is not None:
-            await self.__session.__aexit__(exc_type, exc_val, exc_tb)
-            self.__session = None
+        await self.__session.__aexit__(exc_type, exc_val, exc_tb)
 
     @overload
     async def query(self,
@@ -107,8 +107,6 @@ class Moodle:
             datetime instances and Enums. See Moodle.transform_param()
         :param model: A Pydantic model used to validate server response. If None, then no validation is done.
         :returns: An instance of the specified Pydantic model, or just a decoded JSON."""
-        if self.__session is None:
-            self.__session = aiohttp.ClientSession()
         urlpath = self.__base_url + urlpath
         paramvalues = {}
         for name, value in params.items():
@@ -150,8 +148,6 @@ class Moodle:
     async def login(self) -> None:
         """Logs into the server and stores the token. See ``token`` attribute.
         This method will be called automatically whenever an invalid token error is received."""
-        if self.__session is None:
-            self.__session = aiohttp.ClientSession()
         url = self.__base_url + 'login/token.php'
         params = dict(username=self.__username, password=self.__password, service=self.__service)
         try:
