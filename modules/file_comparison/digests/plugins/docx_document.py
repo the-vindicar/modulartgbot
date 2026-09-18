@@ -33,8 +33,13 @@ def _query_xml(root, *path: str) -> t.Union[xml.dom.Node, str, None]:
             else:
                 return None
         else:
+            part = part.lower()
             for child in current.childNodes:
-                if child.nodeType == child.ELEMENT_NODE and child.tagName == part:
+                if child.nodeType != child.ELEMENT_NODE:
+                    continue
+                n1 = child.tagName.lower()
+                n2 = (child.tagName.partition(':')[2] or "").lower()
+                if part in (n1, n2):
                     current = child
                     break
             else:
