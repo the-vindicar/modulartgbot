@@ -6,9 +6,9 @@ services:
   postgresql:
     hostname: postgresql
     container_name: postgresql
-    ports:
-      - "55432:5432"  # TODO: удалить, это только для отладки
-    image: postgres:latest
+    # ports:
+    #  - "55432:5432"  # это только для отладки
+    image: postgres:17
     environment:
       - PGUSER=postgres
       - POSTGRES_USER=postgres
@@ -21,7 +21,7 @@ services:
       timeout: 10s
       retries: 5
     volumes:
-      - postgre-data:/var/lib/postgresql/data
+      - postgre-data:/var/lib/postgresql/data  # valid for postgres:17, but not 18+!
 
   multibot:
     hostname: multibot
@@ -33,6 +33,17 @@ services:
       - .env
     environment:
       - MULTIBOT_DATA=/data/multibot
+      - POSTGRES_HOST=postgresql
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=multibot
+      # - MOODLE_USER=username
+      #  MOODLE_PWD=password
+      #  TELEGRAM_PROXY=socks5h://host.docker.internal:2080
+      #  TELEGRAM_BOT_TOKEN=token
+      - TELEGRAM_FSM_TEMP_STORAGE=1
+      - QUART_ROOT=/
+      #- QUART_AUTH_SECRET=secret value chosen by you
     volumes:
       - multibot-data:/data/multibot
     tty: true
