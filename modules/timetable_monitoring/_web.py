@@ -1,6 +1,8 @@
 """Реализует web-часть монитора расписаний."""
+from typing import Literal
 import asyncio
 import dataclasses
+import datetime
 
 import quart
 
@@ -30,6 +32,18 @@ blueprint = quart.Blueprint(
     url_prefix='/timetable', template_folder='templates',
     static_folder='static', static_url_path='static')
 __all__ = ['blueprint', 'web_context']
+
+
+def get_current_week() -> Literal['above', 'below']:
+    """Определяет текущую неделю: над чертой или под чертой"""
+    now = datetime.datetime.now()
+    # начало текущего учебного года
+    start = datetime.datetime(now.year if now.month >= 9 else now.year-1, 9, 1)
+    # понедельник первой учебной недели
+    start = start + datetime.timedelta(days=(7 if start.weekday() >= 5 else 0) - start.weekday())
+    # номер учебной недели (с нуля)
+    week = (now - start).days // 7
+    return 'above' if week % 2 == 0 else 'below'
 
 
 @blueprint.get('/')
@@ -64,6 +78,7 @@ async def handle_teachers():
         'timetable/teachers.html',
         headers=update_times,
         days=days,
+        week=get_current_week(),
         len=len,
         rooms_url=quart.url_for('.handle_rooms')
     )
@@ -92,6 +107,7 @@ async def handle_rooms():
         'timetable/rooms.html',
         headers=headers,
         days=days,
+        week=get_current_week(),
         len=len,
         teachers_url=quart.url_for('.handle_teachers')
     )

@@ -43,7 +43,7 @@ async def main():
             module_whitelist=[
                 'db', 'telegram',
                 'users',
-                'moodle', 'users_extra', 'moodle_monitoring', 'file_comparison',
+                #'moodle', 'users_extra', 'moodle_monitoring', 'file_comparison',
                 'workload',
                 'timetable_monitoring',
             ]

@@ -85,6 +85,10 @@ tbody td.first-period {
     border-top: solid 3px black;
 }
 
+body.week-above td.slot-below span, body.week-below td.slot-above span {
+    color: gray;
+}
+
 td.day-col {
     border-top: solid 3px black;
     border-bottom: none 0px black;
