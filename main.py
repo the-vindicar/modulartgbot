@@ -40,13 +40,7 @@ async def main():
         modules_context = modules_lifespan(
             webapp=app,
             cfg=cfg,
-            module_whitelist=[
-                'db', 'telegram',
-                'users',
-                #'moodle', 'users_extra', 'moodle_monitoring', 'file_comparison',
-                'workload',
-                'timetable_monitoring',
-            ]
+            module_whitelist=os.environ.get('MODULES', '').split()
         )
         async with modules_context:
             yield

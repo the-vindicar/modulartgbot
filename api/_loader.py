@@ -142,7 +142,7 @@ async def modules_lifespan(
     log.debug('Searching for modules in %s ...', moddir)
     for item in moddir.glob('*'):
         mod_name = item.stem
-        if item.name.startswith(('_', '.')) or (module_whitelist is not None and mod_name not in module_whitelist):
+        if item.name.startswith(('_', '.')) or (module_whitelist and mod_name not in module_whitelist):
             continue
         if (item.is_file() and item.name.endswith('.py')) or (item.is_dir() and (item / '__init__.py').is_file()):
             try:
